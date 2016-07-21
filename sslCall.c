@@ -15,7 +15,7 @@
 int doSslCall(char *body)
 {
 
-	//Sample curl call
+	//Curl call
 	//curl -i -X POST -H "Content-Type: text/xml" -d "<Request type=\"CardEaseXML\" version=\"1.0.0\"></Request>"
 
 

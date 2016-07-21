@@ -6,7 +6,7 @@ debug: CC += -g -DDEBUG
 debug: executable
 
 executable: PaymentSample.c
-	$(CC) PaymentSample.c tlv.c emvTagList.c sslCall.c -o PaymentSample -lfeclr -lfepkcs11 -lleds -lbuzzer -lL2Manager -lL2Base -lL2PayPass -lL2Paywave -lL2Entrypoint -lL2ExpressPay -lL2Discover -lL2FeigHAL -lssl -lcrypto
+	$(CC) PaymentSample.c tlv.c emvTagList.c sslCall.c -o PaymentSample -lfeclr -lfepkcs11 -lleds -lbuzzer -lL2Manager -lL2Base -lL2PayPass -lL2Paywave -lL2Entrypoint -lL2ExpressPay -lL2Discover -lL2FeigHAL -lfememcard -lpthread -lssl -lcrypto
 	
 .PHONY: clean
 clean:

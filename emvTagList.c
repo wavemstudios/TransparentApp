@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+#include "macros.h"
+
 #define CONSTRUCTED 1
 #define PRIMITIVE 0
 #define ISSUER 2

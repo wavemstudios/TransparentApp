@@ -10,6 +10,8 @@
 #include <openssl/crypto.h>
 #include "sslCall.h"
 
+#include "macros.h"
+
 int doSslCall(char *body)
 {
 

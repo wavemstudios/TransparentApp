@@ -43,24 +43,234 @@
 #include <feig/feclr.h>
 #include <feig/leds.h>
 #include <feig/buzzer.h>
+#include <feig/fememcard.h>
 #include <sys/socket.h>
 #include <netdb.h>
 #include <netinet/in.h>
+
+#include "macros.h"
 
 #include "tlv.h"
 #include "emvTagList.h"
 #include "sslCall.h"
 
-#define WAIT_FOR_CARD_INSERTION_TIMEOUT	30000000LL /* 30 seconds in us*/
+#define WAIT_FOR_CARD_INSERTION_TIMEOUT	200000LL /* 2 seconds in us*/
 #define WAIT_FOR_CARD_REMOVAL_TIMEOUT	30000000LL /* 30 seconds in us*/
 
 #define PAYMENT_SAMPLE_VERSION	"01.04.00"
 
 #define EMV_ONLINE_SUCCESS	1    /* !< Force Valid Online Response */
 
+#define FECLR_DEVICE		"/dev/feclr0"
 
 static int gfeclr_fd = -1;
 static L2Outcome gL2Outcome;
+
+//Thread for sending data online
+void *thread_doSslCall(void *body){
+
+	printf("\n\n\nthread_doSslCall here...\n");
+
+	doSslCall((char *)body);
+
+	free(body);
+
+	printf("\n\n\nthread_doSslCall here2...\n");
+
+	return NULL;
+}
+
+static void visualization_mifare_classic(int *tag, int *new_tag)
+{
+	if ((*tag) && (*new_tag)) {
+		buzzer_on(1500);
+		leds_off(LEDS_GREEN1 | LEDS_GREEN2 | LEDS_GREEN3 |
+			 LEDS_YELLOW | LEDS_RED);
+		usleep(100000);
+		usleep(100000);
+		leds_on(LEDS_RED);
+		buzzer_off();
+		*new_tag = 0;
+		*tag = 0;
+	}
+}
+
+static void visualization_mifare_plus(int *tag, int *new_tag)
+{
+	if ((*tag) && (*new_tag)) {
+		buzzer_on(1500);
+		leds_off(LEDS_GREEN1 | LEDS_GREEN2 | LEDS_GREEN3 |
+			 LEDS_YELLOW | LEDS_RED);
+		usleep(100000);
+		leds_on(LEDS_GREEN2);
+		usleep(100000);
+		leds_on(LEDS_RED);
+		buzzer_off();
+		*new_tag = 0;
+		*tag = 0;
+	}
+}
+
+static void visualization_mifare_ultralight(int *tag, int *new_tag)
+{
+	if ((*tag) && (*new_tag)) {
+		buzzer_on(1500);
+		leds_off(LEDS_GREEN1 | LEDS_GREEN2 | LEDS_GREEN3 |
+			 LEDS_YELLOW | LEDS_RED);
+		usleep(100000);
+		leds_on(LEDS_GREEN1);
+		usleep(100000);
+		leds_on(LEDS_RED);
+		buzzer_off();
+		*new_tag = 0;
+		*tag = 0;
+	}
+}
+
+static void visualization_mifare_desfire(int *tag, int *new_tag)
+{
+	if ((*tag) && (*new_tag)) {
+		buzzer_on(1500);
+		leds_off(LEDS_GREEN1 | LEDS_GREEN2 | LEDS_GREEN3 |
+			 LEDS_YELLOW | LEDS_RED);
+		leds_on(LEDS_GREEN1);
+		usleep(100000);
+		leds_on(LEDS_GREEN2);
+		usleep(100000);
+		leds_on(LEDS_RED);
+		buzzer_off();
+		*new_tag = 0;
+		*tag = 0;
+	}
+}
+
+static void visualization_credit(int *tag, int *new_tag)
+{
+	if ((*tag) && (*new_tag)) {
+		buzzer_on(1500);
+		leds_off(LEDS_GREEN1 | LEDS_GREEN2 | LEDS_GREEN3 |
+			 LEDS_YELLOW | LEDS_RED);
+		leds_on(LEDS_GREEN1);
+		usleep(100000);
+		leds_on(LEDS_GREEN2);
+		usleep(100000);
+		leds_on(LEDS_GREEN3);
+		buzzer_off();
+		*new_tag = 0;
+		*tag = 0;
+	}
+}
+
+static void visualization_girogo(int *tag, int *new_tag)
+{
+	if ((*tag) && (*new_tag)) {
+		buzzer_on(1500);
+		leds_off(LEDS_GREEN1 | LEDS_GREEN2 | LEDS_GREEN3 |
+			 LEDS_YELLOW | LEDS_RED);
+		usleep(100000);
+		leds_on(LEDS_GREEN2);
+		usleep(100000);
+		buzzer_off();
+		*new_tag = 0;
+		*tag = 0;
+	}
+}
+
+static void visualization_cipurse(int *tag, int *new_tag)
+{
+	if ((*tag) && (*new_tag)) {
+		buzzer_on(1500);
+		leds_off(LEDS_GREEN1 | LEDS_GREEN2 | LEDS_GREEN3 |
+			 LEDS_YELLOW | LEDS_RED);
+		usleep(100000);
+		leds_on(LEDS_YELLOW | LEDS_RED);
+		usleep(100000);
+		buzzer_off();
+		*new_tag = 0;
+		*tag = 0;
+	}
+}
+
+static void visualization_iso14443a(int *tag, int *new_tag)
+{
+	if ((*tag) && (*new_tag)) {
+		buzzer_on(1500);
+		leds_off(LEDS_GREEN1 | LEDS_GREEN2 | LEDS_GREEN3 |
+			 LEDS_YELLOW | LEDS_RED);
+		leds_on(LEDS_GREEN1);
+		usleep(100000);
+		leds_on(LEDS_YELLOW);
+		usleep(100000);
+		leds_on(LEDS_RED);
+		buzzer_off();
+		*new_tag = 0;
+		*tag = 0;
+	}
+}
+
+static void visualization_iso14443b(int *tag, int *new_tag)
+{
+	if ((*tag) && (*new_tag)) {
+		buzzer_on(1500);
+		leds_off(LEDS_GREEN1 | LEDS_GREEN2 | LEDS_GREEN3 |
+			 LEDS_YELLOW | LEDS_RED);
+		leds_on(LEDS_GREEN1);
+		usleep(100000);
+		leds_on(LEDS_YELLOW);
+		usleep(100000);
+		buzzer_off();
+		*new_tag = 0;
+		*tag = 0;
+	}
+}
+
+static void visualization_jewel(int *tag, int *new_tag)
+{
+	if ((*tag) && (*new_tag)) {
+		buzzer_on(1500);
+		leds_off(LEDS_GREEN1 | LEDS_GREEN2 | LEDS_GREEN3 |
+			 LEDS_YELLOW | LEDS_RED);
+		usleep(100000);
+		usleep(100000);
+		leds_on(LEDS_GREEN3);
+		buzzer_off();
+		*new_tag = 0;
+		*tag = 0;
+	}
+}
+
+static void visualization_felica(int *tag, int *new_tag)
+{
+	if ((*tag) && (*new_tag)) {
+		buzzer_on(1500);
+		leds_off(LEDS_GREEN1 | LEDS_GREEN2 | LEDS_GREEN3 |
+			 LEDS_YELLOW | LEDS_RED);
+		usleep(100000);
+		leds_on(LEDS_YELLOW);
+		usleep(100000);
+		buzzer_off();
+		*new_tag = 0;
+		*tag = 0;
+	}
+}
+
+static void ResetTransactionData(L2ExternalTransactionParameters *tp, UIRequest *onRequestOutcome, UIRequest *onRestartOutcome)
+{
+	/* Init EMVCo L2 outcome structure */
+		memset(&gL2Outcome, 0, sizeof(L2Outcome));
+
+		/* Init EMVCo L2 transaction parameters */
+		memset(tp, 0, sizeof(L2ExternalTransactionParameters));
+		memset(onRequestOutcome, 0, sizeof(UIRequest));
+		memset(onRestartOutcome, 0, sizeof(UIRequest));
+		memcpy(tp->m_9F02_AmountAuthorised, "\x06\x00\x00\x00\x00\x07\x77", 7);
+		memcpy(tp->m_9F03_AmountOther, "\x06\x00\x00\x00\x00\x00\x00", 7);
+		memcpy(tp->m_9C_TransactionType, "\x01\x00", 2);
+		/* Transaction currency code EURO = 978 */
+		/* Transaction currency code USD = 840 */
+		/* Transaction currency code GBP = 826 */
+		memcpy(tp->m_5F2A_TransactionCurrencyCode, "\x02\x08\x26", 3);
+}
 
 static int open_session_and_login(CK_SESSION_HANDLE_PTR phSession,
 							      CK_SLOT_ID slotID)
@@ -545,6 +755,7 @@ int main(int argc, char *argv[])
 	struct timeval firstResp;
 	union tech_data tech_data;
 	uint64_t status, tech;
+
 	int fd = 0;
 	int rc = 0;
 	int i = 0;
@@ -562,6 +773,16 @@ int main(int argc, char *argv[])
 	char *outputBuffer;
 	int rcTransaction = 0;
 	int rcResponse = 0;
+	pthread_t inc_x_thread;
+
+	unsigned char cmd_buffer[261];
+	unsigned char rsp_buffer[258];
+	size_t rx_frame_size;
+	uint8_t rx_last_bits;
+	char *SELECT_2PAY_SYS = "\x00\xA4\x04\x00\x0E\x32\x50\x41\x59\x2E\x53\x59\x53\x2E\x44\x44\x46\x30\x31\x00";
+	int new_tag = 0, tag = 0;
+	uint16_t tag_typ = FEMEMCARD_TAG_TYPE_UNKNOWN;
+
 	//******************
 
 	L2ExternalTransactionParameters tp;
@@ -591,7 +812,7 @@ int main(int argc, char *argv[])
 	}
 
 	/* Acquire exclusive access to the FEIG ContactLess Reader device 0 */
-	fd = open("/dev/feclr0", O_RDWR);
+	fd = open(FECLR_DEVICE, O_RDWR);
 	if (fd < 0) {
 		printf("Open device failed with error: \"%s\"\n",
 							       strerror(errno));
@@ -648,36 +869,49 @@ int main(int argc, char *argv[])
 		goto err5;
 	}
 
+reset:
+
+
+	ResetTransactionData(&tp,&onRequestOutcome,&onRestartOutcome);
+
 	/* Init EMVCo L2 outcome structure */
-	memset(&gL2Outcome, 0, sizeof(L2Outcome));
+//	memset(&gL2Outcome, 0, sizeof(L2Outcome));
 
 	/* Init EMVCo L2 transaction parameters */
-	memset(&tp, 0, sizeof(L2ExternalTransactionParameters));
-	memset(&onRequestOutcome, 0, sizeof(UIRequest));
-	memset(&onRestartOutcome, 0, sizeof(UIRequest));
-	memcpy(tp.m_9F02_AmountAuthorised, "\x06\x00\x00\x00\x00\x07\x77", 7);
-	memcpy(tp.m_9F03_AmountOther, "\x06\x00\x00\x00\x00\x00\x00", 7);
-	memcpy(tp.m_9C_TransactionType, "\x01\x00", 2);
+//	memset(&tp, 0, sizeof(L2ExternalTransactionParameters));
+//	memset(&onRequestOutcome, 0, sizeof(UIRequest));
+//	memset(&onRestartOutcome, 0, sizeof(UIRequest));
+//	memcpy(tp.m_9F02_AmountAuthorised, "\x06\x00\x00\x00\x00\x07\x77", 7);
+//	memcpy(tp.m_9F03_AmountOther, "\x06\x00\x00\x00\x00\x00\x00", 7);
+//	memcpy(tp.m_9C_TransactionType, "\x01\x00", 2);
 	/* Transaction currency code EURO = 978 */
 	/* Transaction currency code USD = 840 */
 	/* Transaction currency code GBP = 826 */
-	memcpy(tp.m_5F2A_TransactionCurrencyCode, "\x02\x08\x26", 3);
+//	memcpy(tp.m_5F2A_TransactionCurrencyCode, "\x02\x08\x26", 3);
+
 
 	/* enable green LED 0 */
 	leds_set(LEDS_GREEN0);
 
+start:
+
+	new_tag = 1;
+	tag = 0;
 	/* Start the EMVCo compliant polling loop and poll for ISO/IEC 14443-A
 	 * and ISO/IEC 14443-B compatible RFID cards.
 	 */
 	rc = feclr_start_polling(fd,
 				 FECLR_LOOP_EMVCO,
-				 FECLR_TECH_ISO14443A | FECLR_TECH_ISO14443B,
+				 FECLR_TECH_ISO14443A | FECLR_TECH_ISO14443B |
+				 FECLR_TECH_FELICA | FECLR_TECH_ST |
+				 FECLR_TECH_INNOVATRON,
 				 FECLR_FLAG_DISABLE_LPCD,
 				 &status);
 	if (rc < 0) {
 		printf("Start polling failed with error: \"%s\"\n",
-								  strerror(rc));
-		goto err5;
+		strerror(rc));
+		feclr_stop_polling(fd);
+		goto start;
 	} else if (status != FECLR_STS_OK) {
 		printf("Start polling failed with status: 0x%08llX\n", status);
 		goto err6;
@@ -685,294 +919,444 @@ int main(int argc, char *argv[])
 
 	/* Wait for x seconds for an RFID card to be presented. */
 	printf("Please present card...\n");
-	rc = feclr_wait_for_card(fd,
-				 WAIT_FOR_CARD_INSERTION_TIMEOUT,
-				 &tech,
-				 &tech_data,
-				 &firstResp,
-				 &status);
-	if (rc < 0) {
-		printf("Wait for card failed with error: \"%s\"\n",
-		strerror(rc));
-		goto err6;
-	} else if (status != FECLR_STS_OK) {
-		printf("Wait for card failed with status: 0x%08llX\n", status);
-		goto err6;
-	}
-
-	/* Evaluate transponder data */
-	/** At this point you could evaluate the card data (tech and tech_data).
-	 * You could evaluate the card type and maybe do some "closed loop"
-	 * processing.
-	 * (E.g.: NXP Mifare DESFire)
-	 * (For tag type identification please see NXP application note
-	 * AN10833 MIFARE Type Identification Procedure - NXP.com
-	 **/
-
-	/* Check if transponder is ISO/IEC 14443-4 compatible */
-	if (((tech == FECLR_TECH_ISO14443A) &&
-	     ((tech_data.iso14443a_jewel.iso14443a.sak & 0x20) == 0x00))
-	    ||
-	    ((tech == FECLR_TECH_ISO14443B) &&
-	     ((tech_data.iso14443b.atqb[10] & 0x01) == 0x00))) {
-		printf("Transponder is not ISO/IEC 14443-4 compatible !\n");
-		goto err6;
-	}
-
-	/* Select the ISO/IEC 14443-4 protocol to communicate with the RFID
-	 * card.
-	 */
-	rc = feclr_select_protocol(fd, FECLR_PROTO_ISO14443_4, &status);
-	if (rc < 0) {
-		printf("Select ISO14443-4 protocol failed with error: \"%s\"\n",
-		strerror(rc));
-		goto err6;
-	} else if (status != FECLR_STS_OK) {
-		printf("Select ISO14443-4 protocol failed. Status: 0x%08llX\n",
-		status);
-		goto err6;
-	}
-
-	/* Perform EMVCo L2 transaction */
-	rcTransaction = l2manager_PerformTransaction(&tp,
-					  &onRequestOutcome,
-					  &onRestartOutcome,
-					  samSlot,
-					  pToken);
-	/* Evaluate return value */
-	printf("\nl2manager_PerformTransaction() returns with %d\n\n", rc);
-	switch (rcTransaction) {
-	case EMV_OFFLINE_ACCEPT:
-	case EMV_GO_ONLINE:
-		if (onRequestOutcome.m_bpresent)
-			printf("onRequestOutcome.m_ucmsgid:  %d\n",
-					       (int)onRequestOutcome.m_ucmsgid);
-		if (onRestartOutcome.m_bpresent)
-			printf("onRestartOutcome.m_ucmsgid:  %d\n",
-					       (int)onRestartOutcome.m_ucmsgid);
-		/* Get transaction data.
-		 * Please see description of
-		 * rdol_<kernel_id>_emv.txt or rdol_<kernel_id>_ms.txt.
-		 */
-		result = l2manager_GetTransactionData(transaction_data,
-						      sizeof(transaction_data),
-						      &transaction_data_len);
-		if (result == L2TRUE) {
-			printf("TRANSACTION DATA:\n");
-			for (i = 0; i < transaction_data_len; i++)
-				printf("%02X", transaction_data[i]);
-			printf("\n\n");
-
-//***************** STEVE ADDED
-// create output format for CULR call to Creditcall
-
-			//unsigned short size = sizeof(transaction_data)/sizeof(transaction_data[0]);
-
-			tlvInfo_t *t=malloc(sizeof(tlvInfo_t)*transaction_data_len);
-			memset(t,0,transaction_data_len);
-			tlvInfo_init(t);
-
-			int tindex =0;
-
-			asprintf(&outputBuffer, "<Request type=\"CardEaseXML\" version=\"1.0.0\">\n",outputBuffer);
-			asprintf(&outputBuffer, "%s<TransactionDetails>\n",outputBuffer);
-			asprintf(&outputBuffer, "%s<LocalDateTime format=\"yyyyMMddHHmmss\">20160624105000</LocalDateTime>\n",outputBuffer);
-			if (rcTransaction == EMV_OFFLINE_ACCEPT) {
-				asprintf(&outputBuffer, "%s<MessageType>Offline</MessageType>\n",outputBuffer);
-			} else {
-				asprintf(&outputBuffer, "%s<MessageType>Auth</MessageType>\n",outputBuffer);
+	while (1) {
+		rc = feclr_wait_for_card(fd,
+					 WAIT_FOR_CARD_INSERTION_TIMEOUT,
+					 &tech,
+					 &tech_data,
+					 &firstResp,
+					 &status);
+		if (rc < 0) {
+			printf("Wait for card failed with error: \"%s\"\n",
+			strerror(rc));
+			feclr_stop_polling(fd);
+			goto start;
+		} else if (status != FECLR_STS_OK) {
+			new_tag = 1;
+			tag = 0;
+			if (status != FECLR_STS_TIMEOUT){
+				printf("Wait for card failed with status: 0x%08llX\n", status);
 			}
-			asprintf(&outputBuffer, "%s<Amount>777</Amount>\n",outputBuffer);
-			asprintf(&outputBuffer, "%s<Reference>CARD_TOKEN_HASH</Reference>\n",outputBuffer);
-			asprintf(&outputBuffer, "%s</TransactionDetails>\n",outputBuffer);
-			asprintf(&outputBuffer, "%s<TerminalDetails>\n",outputBuffer);
-			asprintf(&outputBuffer, "%s<TerminalID>99962873</TerminalID>\n",outputBuffer);
-			asprintf(&outputBuffer, "%s<TransactionKey>3uZwVaSDzfU4xqHH</TransactionKey>\n",outputBuffer);
-			asprintf(&outputBuffer, "%s</TerminalDetails>\n",outputBuffer);
-			asprintf(&outputBuffer, "%s<CardDetails>\n",outputBuffer);
-			asprintf(&outputBuffer, "%s<ICC type=\"EMV\">\n",outputBuffer);
-			emvparse(transaction_data, transaction_data_len, t, &tindex, 0, &outputBuffer);
-			asprintf(&outputBuffer, "%s</ICC>\n",outputBuffer);
-			asprintf(&outputBuffer, "%s</CardDetails>\n",outputBuffer);
-			asprintf(&outputBuffer, "%s</Request>\n",outputBuffer);
-
-			printf("%s",outputBuffer);
-
-//***************** STEVE ADDED END
-
+			continue;
 		}
 
-		/* Get custom data.
-		 * Please see description of rdol_clear.txt.
+		/* Evaluate transponder data */
+		/** At this point you could evaluate the card data (tech and tech_data).
+		 * You could evaluate the card type and maybe do some "closed loop"
+		 * processing.
+		 * (E.g.: NXP Mifare DESFire)
+		 * (For tag type identification please see NXP application note
+		 * AN10833 MIFARE Type Identification Procedure - NXP.com
+		 **/
+
+		if (tech & FECLR_TECH_FELICA) {
+			/* felica detected */
+			printf("felica detected\n");
+			tag = 1;
+			visualization_felica(&tag, &new_tag);
+			continue;
+		}
+
+		if ((tech & FECLR_TECH_ISO14443A) &&
+		    (tech_data.iso14443a_jewel.type == FECLR_TECH_JEWEL)) {
+			/* jewel detected */
+			printf("jewel detected\n");
+			tag = 1;
+			visualization_jewel(&tag, &new_tag);
+			continue;
+		}
+
+		if (tech & (FECLR_TECH_ISO14443A | FECLR_TECH_ISO14443B)) {
+			/* Evaluate tag */
+			rc = fememc_tag_evaluator(tech_data, tech, &tag_typ);
+			if (rc < 0) {
+				printf("Eval tag failed with error: \"%s\"\n",
+								  strerror(rc));
+				feclr_stop_polling(fd);
+				goto start;
+			}
+
+			switch (tag_typ) {
+			case FEMEMCARD_TAG_TYPE_MIFARE_CL_1K:
+			case FEMEMCARD_TAG_TYPE_MIFARE_CL_4K:
+			case FEMEMCARD_TAG_TYPE_MIFARE_MINI:
+			case FEMEMCARD_TAG_TYPE_MIFARE_PL_SL1_2K:
+			case FEMEMCARD_TAG_TYPE_MIFARE_PL_SL1_4K:
+				/* mifare classic detected */
+				printf("mifare classic detected\n");
+				tag = 1;
+				visualization_mifare_classic(&tag, &new_tag);
+				continue;
+
+			case FEMEMCARD_TAG_TYPE_MIFARE_PL_SL2_2K:
+			case FEMEMCARD_TAG_TYPE_MIFARE_PL_SL2_4K:
+				/* mifare plus detected */
+				printf("mifare plus detected\n");
+				tag = 1;
+				visualization_mifare_plus(&tag, &new_tag);
+				continue;
+
+			case FEMEMCARD_TAG_TYPE_NFC_TAG_TYP_2:
+				/* nfc tag type 2 detected */
+				printf("nfc tag type 2 detected\n");
+				tag = 1;
+				visualization_mifare_ultralight(&tag, &new_tag);
+				continue;
+
+			case FEMEMCARD_TAG_TYPE_UNKNOWN:
+			case FEMEMCARD_TAG_TYPE_SLE55R_XXXX:
+				if (tech & FECLR_TECH_ISO14443A) {
+					/* No ISO 14443-4 tag */
+					/* ISO14443A detected */
+					printf("No ISO 14443-4 tag - ISO14443A detected\n");
+					tag = 1;
+					visualization_iso14443a(&tag, &new_tag);
+					continue;
+				} else if (tech & FECLR_TECH_ISO14443B) {
+					/* No ISO 14443-4 tag */
+					/* ISO14443B detected */
+					printf("No ISO 14443-4 tag - ISO14443B detected\n");
+					tag = 1;
+					visualization_iso14443b(&tag, &new_tag);
+					continue;
+				}
+				break;
+			}
+		}
+
+		/* Final check if transponder is ISO/IEC 14443-4 compatible */
+		if (((tech == FECLR_TECH_ISO14443A) &&
+			 ((tech_data.iso14443a_jewel.iso14443a.sak & 0x20) == 0x00))
+			||
+			((tech == FECLR_TECH_ISO14443B) &&
+			 ((tech_data.iso14443b.atqb[10] & 0x01) == 0x00))) {
+			printf("Transponder is not ISO/IEC 14443-4 compatible !\n");
+			continue;
+		}
+
+
+		if (tech & (FECLR_TECH_ISO14443A | FECLR_TECH_ISO14443B)) {
+			switch (tag_typ) {
+			case FEMEMCARD_TAG_TYPE_MIFARE_DESFIRE:
+				/* mifare desfire detected */
+				printf("mifare desfire detected\n");
+				tag = 1;
+				visualization_mifare_desfire(&tag, &new_tag);
+				continue;
+
+			case FEMEMCARD_TAG_TYPE_MIFARE_PL_SL3:
+				/* mifare plus detected */
+				printf("mifare plus detected\n");
+				tag = 1;
+				visualization_mifare_plus(&tag, &new_tag);
+				continue;
+
+			case FEMEMCARD_TAG_TYPE_MIFARE_EMULATION:
+				/* mifare classic detected */
+				printf("mifare classic detected\n");
+				tag = 1;
+				visualization_mifare_classic(&tag, &new_tag);
+				continue;
+			}
+		}
+
+		/* Select the ISO/IEC 14443-4 protocol to communicate with the RFID
+		 * card.
 		 */
-		result = l2manager_GetCustomData(custom_data,
-						 sizeof(custom_data),
-						 &custom_data_len);
-		if (result == L2TRUE) {
-			printf("RDOL:\n");
-			for (i = 0; i < custom_data_len; i++)
-				printf("%02X", custom_data[i]);
-			printf("\n\n");
+		rc = feclr_select_protocol(fd, FECLR_PROTO_ISO14443_4, &status);
+		if (rc < 0) {
+			printf("Select ISO14443-4 protocol failed with error: \"%s\"\n",
+			strerror(rc));
+			continue;
+		} else if (status != FECLR_STS_OK) {
+			printf("Select ISO14443-4 protocol failed. Status: 0x%08llX\n",
+			status);
+			continue;
 		}
 
-		/** If the return value is EMV_GO_ONLINE you must call the
-		 * function l2manager_ProcessOnlineResponse().
-		**/
-		if (rcTransaction == EMV_GO_ONLINE) {
-			/** ATTENTION
-			 * It is absolutely necessary to call the function
-			 * l2manager_ProcessOnlineResponse() if the code
-			 * EMV_GO_ONLINE is returned from function
-			 * l2manager_PerformTransaction() !
-			 * If you want to abort the transaction, or the backend
-			 * is not reachable or something else, you should set
-			 * the ucOnlineRespData and OnlineRespDataLen to zero.
-			 * In such a case the return code will be
-			 * EMV_ONLINE_DECLINE.
+		if (status != FECLR_STS_OK) {
+			if (tech & FECLR_TECH_ISO14443A) {
+				/* ISO14443A detected */
+				printf("ISO14443A detected\n");
+				tag = 1;
+				visualization_iso14443a(&tag, &new_tag);
+				continue;
+			}
+			if (tech & FECLR_TECH_ISO14443B) {
+				/* ISO14443B detected */
+				printf("ISO14443B detected\n");
+
+				tag = 1;
+				visualization_iso14443b(&tag, &new_tag);
+				continue;
+			}
+			continue;
+		}
+
+
+
+		/* Perform EMVCo L2 transaction */
+		rcTransaction = l2manager_PerformTransaction(&tp,
+						  &onRequestOutcome,
+						  &onRestartOutcome,
+						  samSlot,
+						  pToken);
+		/* Evaluate return value */
+		printf("\nl2manager_PerformTransaction() returns with %d\n\n", rc);
+		switch (rcTransaction) {
+		case EMV_OFFLINE_ACCEPT:
+		case EMV_GO_ONLINE:
+			if (onRequestOutcome.m_bpresent)
+				printf("onRequestOutcome.m_ucmsgid:  %d\n",
+							   (int)onRequestOutcome.m_ucmsgid);
+			if (onRestartOutcome.m_bpresent)
+				printf("onRestartOutcome.m_ucmsgid:  %d\n",
+							   (int)onRestartOutcome.m_ucmsgid);
+			/* Get transaction data.
+			 * Please see description of
+			 * rdol_<kernel_id>_emv.txt or rdol_<kernel_id>_ms.txt.
+			 */
+			result = l2manager_GetTransactionData(transaction_data,
+								  sizeof(transaction_data),
+								  &transaction_data_len);
+			if (result == L2TRUE) {
+				printf("TRANSACTION DATA:\n");
+				for (i = 0; i < transaction_data_len; i++)
+					printf("%02X", transaction_data[i]);
+				printf("\n\n");
+
+	//***************** STEVE ADDED
+	// create output format for CULR call to Creditcall
+
+				//unsigned short size = sizeof(transaction_data)/sizeof(transaction_data[0]);
+
+				tlvInfo_t *t=malloc(sizeof(tlvInfo_t)*transaction_data_len);
+				memset(t,0,transaction_data_len);
+				tlvInfo_init(t);
+
+				int tindex =0;
+
+				asprintf(&outputBuffer, "<Request type=\"CardEaseXML\" version=\"1.0.0\">\n",outputBuffer);
+				asprintf(&outputBuffer, "%s<TransactionDetails>\n",outputBuffer);
+				asprintf(&outputBuffer, "%s<LocalDateTime format=\"yyyyMMddHHmmss\">20160624105000</LocalDateTime>\n",outputBuffer);
+				if (rcTransaction == EMV_OFFLINE_ACCEPT) {
+					asprintf(&outputBuffer, "%s<MessageType>Offline</MessageType>\n",outputBuffer);
+				} else {
+					asprintf(&outputBuffer, "%s<MessageType>Auth</MessageType>\n",outputBuffer);
+				}
+				asprintf(&outputBuffer, "%s<Amount>777</Amount>\n",outputBuffer);
+				asprintf(&outputBuffer, "%s<Reference>CARD_TOKEN_HASH</Reference>\n",outputBuffer);
+				asprintf(&outputBuffer, "%s</TransactionDetails>\n",outputBuffer);
+				asprintf(&outputBuffer, "%s<TerminalDetails>\n",outputBuffer);
+				asprintf(&outputBuffer, "%s<TerminalID>99962873</TerminalID>\n",outputBuffer);
+				asprintf(&outputBuffer, "%s<TransactionKey>3uZwVaSDzfU4xqHH</TransactionKey>\n",outputBuffer);
+				asprintf(&outputBuffer, "%s</TerminalDetails>\n",outputBuffer);
+				asprintf(&outputBuffer, "%s<CardDetails>\n",outputBuffer);
+				asprintf(&outputBuffer, "%s<ICC type=\"EMV\">\n",outputBuffer);
+				emvparse(transaction_data, transaction_data_len, t, &tindex, 0, &outputBuffer);
+				asprintf(&outputBuffer, "%s</ICC>\n",outputBuffer);
+				asprintf(&outputBuffer, "%s</CardDetails>\n",outputBuffer);
+				asprintf(&outputBuffer, "%s</Request>\n",outputBuffer);
+
+				free(t);
+
+				printf("%s",outputBuffer);
+
+	//***************** STEVE ADDED END
+
+			}
+
+			/* Get custom data.
+			 * Please see description of rdol_clear.txt.
+			 */
+			result = l2manager_GetCustomData(custom_data,
+							 sizeof(custom_data),
+							 &custom_data_len);
+			if (result == L2TRUE) {
+				printf("RDOL:\n");
+				for (i = 0; i < custom_data_len; i++)
+					printf("%02X", custom_data[i]);
+				printf("\n\n");
+			}
+
+			/** If the return value is EMV_GO_ONLINE you must call the
+		root
+		cvend
+			 * function l2manager_ProcessOnlineResponse().
 			**/
+			if (rcTransaction == EMV_GO_ONLINE) {
+				/** ATTENTION
+				 * It is absolutely necessary to call the function
+				 * l2manager_ProcessOnlineResponse() if the code
+				 * EMV_GO_ONLINE is returned from function
+				 * l2manager_PerformTransaction() !
+				 * If you want to abort the transaction, or the backend
+				 * is not reachable or something else, you should set
+				 * the ucOnlineRespData and OnlineRespDataLen to zero.
+				 * In such a case the return code will be
+				 * EMV_ONLINE_DECLINE.
+				**/
 
-			//NEED to get return buffer
-			doSslCall(outputBuffer);
+				//NEED to get return buffer
+				//doSslCall(outputBuffer);
 
-			unsigned char OnlineRespData[1024] = {0};
-			unsigned int OnlineRespDataLen = 0;
-#ifdef EMV_ONLINE_SUCCESS
-			/* Successfull Online Verification = 0x30 0x30 */
-			OnlineRespDataLen = 16;
-			memcpy(OnlineRespData,
-			       "\x8A\x02\x30\x30\x91\x0A\x60\x6D\x6C\x6C\x37\xD4\xAC\x51\x30\x30",
-			       OnlineRespDataLen);
-#endif
-			memset(&onRequestOutcome, 0, sizeof(UIRequest));
-			memset(&onRestartOutcome, 0, sizeof(UIRequest));
-			rcResponse = l2manager_ProcessOnlineResponse(OnlineRespData,
-							     OnlineRespDataLen,
-							     &onRequestOutcome,
-							     &onRestartOutcome);
-			switch (rcResponse) {
-			case EMV_ONLINE_ACCEPT:
-				printf("%s returns with EMV_ONLINE_ACCEPT\n",
-					   "l2manager_ProcessOnlineResponse()");
+				unsigned char OnlineRespData[1024] = {0};
+				unsigned int OnlineRespDataLen = 0;
+	#ifdef EMV_ONLINE_SUCCESS
+				/* Successfull Online Verification = 0x30 0x30 */
+				OnlineRespDataLen = 16;
+				memcpy(OnlineRespData,
+					   "\x8A\x02\x30\x30\x91\x0A\x60\x6D\x6C\x6C\x37\xD4\xAC\x51\x30\x30",
+					   OnlineRespDataLen);
+	#endif
+				memset(&onRequestOutcome, 0, sizeof(UIRequest));
+				memset(&onRestartOutcome, 0, sizeof(UIRequest));
+				rcResponse = l2manager_ProcessOnlineResponse(OnlineRespData,
+									 OnlineRespDataLen,
+									 &onRequestOutcome,
+									 &onRestartOutcome);
+				switch (rcResponse) {
+				case EMV_ONLINE_ACCEPT:
+					printf("%s returns with EMV_ONLINE_ACCEPT\n",
+						   "l2manager_ProcessOnlineResponse()");
+					/* EMVCo success tone.
+					 * Buzzer Beep @ 1500Hz for 500ms
+					 */
+					buzzer_beep(1500, 500);
+					break;
+				case EMV_ONLINE_DECLINE:
+					printf("%s returns with EMV_ONLINE_DECLINE\n",
+						 "\nl2manager_ProcessOnlineResponse()");
+					/* EMVCo alert tone.
+					 * Buzzer Beep @ 750Hz for 200ms
+					 * [On -> Off -> On]
+					 */
+					buzzer_beep(750, 200);
+					usleep(200000);
+					buzzer_beep(750, 200);
+					break;
+				default:
+					printf("%s returns with undefined code (%d)\n",
+						   "\nl2manager_ProcessOnlineResponse()",
+						   rc);
+					/* EMVCo alert tone.
+					 * Buzzer Beep @ 750Hz for 200ms
+					 * [On -> Off -> On]
+					 */
+					buzzer_beep(750, 200);
+					usleep(200000);
+					buzzer_beep(750, 200);
+					break;
+				}
+			} else {
 				/* EMVCo success tone.
 				 * Buzzer Beep @ 1500Hz for 500ms
 				 */
-				buzzer_beep(1500, 500);
-				break;
-			case EMV_ONLINE_DECLINE:
-				printf("%s returns with EMV_ONLINE_DECLINE\n",
-					 "\nl2manager_ProcessOnlineResponse()");
-				/* EMVCo alert tone.
-				 * Buzzer Beep @ 750Hz for 200ms
-				 * [On -> Off -> On]
-				 */
-				buzzer_beep(750, 200);
-				usleep(200000);
-				buzzer_beep(750, 200);
-				break;
-			default:
-				printf("%s returns with undefined code (%d)\n",
-				       "\nl2manager_ProcessOnlineResponse()",
-				       rc);
-				/* EMVCo alert tone.
-				 * Buzzer Beep @ 750Hz for 200ms
-				 * [On -> Off -> On]
-				 */
-				buzzer_beep(750, 200);
-				usleep(200000);
-				buzzer_beep(750, 200);
-				break;
+				if (rcTransaction == EMV_OFFLINE_ACCEPT) {
+
+
+					//Create thread for sending data
+					int err;
+					err = pthread_create(&inc_x_thread,NULL,&thread_doSslCall,(void *)outputBuffer);
+
+					if (err != 0){
+						printf("\n\n\nCan't create thread...\n");
+					} else {
+						printf("\n\n\nThread created...\n");
+					}
+
+
+					leds_set(LEDS_GREEN0 );
+					leds_set(LEDS_GREEN0 | LEDS_GREEN1);
+					leds_set(LEDS_GREEN0 | LEDS_GREEN1 | LEDS_GREEN2);
+					leds_set(LEDS_GREEN0 | LEDS_GREEN1 | LEDS_GREEN2 | LEDS_GREEN3);
+					buzzer_beep(1500, 500);
+					usleep(200000);
+					ResetTransactionData(&tp,&onRequestOutcome,&onRestartOutcome);
+					/* enable green LED 0 */
+					leds_set(LEDS_GREEN0);
+
+				}
 			}
-		} else {
-			/* EMVCo success tone.
-			 * Buzzer Beep @ 1500Hz for 500ms
+			break;
+
+		case EMV_PPSE_NOT_SUPPORTED_BY_CARD:
+		case EMV_NO_MATCHING_APP:
+			/** At this point you could do some "closed loop" processing,
+			 * because the EMVCo kernel refuse the card.
+			 * Maybe it is no credit card, or the application is not
+			 * supported.
+			 * The card is still activated and remains in ISO 14443-4 state.
 			 */
-			if (rcTransaction == EMV_OFFLINE_ACCEPT) {
-				leds_set(LEDS_GREEN0 );
-				leds_set(LEDS_GREEN0 | LEDS_GREEN1);
-				leds_set(LEDS_GREEN0 | LEDS_GREEN1 | LEDS_GREEN2);
-				leds_set(LEDS_GREEN0 | LEDS_GREEN1 | LEDS_GREEN2 | LEDS_GREEN3);
-				buzzer_beep(1500, 500);
-			}
+			/* EMVCo alert tone.
+			 * Buzzer Beep @ 750Hz for 200ms [On -> Off -> On]
+			 */
+			buzzer_beep(750, 200);
+			usleep(200000);
+			buzzer_beep(750, 200);
+			break;
+		/* case ...:
+		 *	break;
+		 */
+		default:
+			/* The other codes should be treated as error. */
+			/* EMVCo alert tone.
+			 * Buzzer Beep @ 750Hz for 200ms [On -> Off -> On]
+			 */
+			buzzer_beep(750, 200);
+			usleep(200000);
+			buzzer_beep(750, 200);
+			break;
 		}
-		break;
 
-	case EMV_PPSE_NOT_SUPPORTED_BY_CARD:
-	case EMV_NO_MATCHING_APP:
-		/** At this point you could do some "closed loop" processing,
-		 * because the EMVCo kernel refuse the card.
-		 * Maybe it is no credit card, or the application is not
-		 * supported.
-		 * The card is still activated and remains in ISO 14443-4 state.
-		 */
-		/* EMVCo alert tone.
-		 * Buzzer Beep @ 750Hz for 200ms [On -> Off -> On]
-		 */
-		buzzer_beep(750, 200);
-		usleep(200000);
-		buzzer_beep(750, 200);
-		break;
-	/* case ...:
-	 *	break;
-	 */
-	default:
-		/* The other codes should be treated as error. */
-		/* EMVCo alert tone.
-		 * Buzzer Beep @ 750Hz for 200ms [On -> Off -> On]
-		 */
-		buzzer_beep(750, 200);
-		usleep(200000);
-		buzzer_beep(750, 200);
-		break;
-	}
+		/* Check TransactionMode */
+		rc = l2manager_GetTransactionMode();
+		switch (rc) {
+		case 1:
+			printf("Transaction mode = Magstripe\n");
+			break;
+		case 2:
+			printf("Transaction mode = Magstripe [CVN_17]\n");
+			break;
+		case 3:
+			printf("Transaction mode = EMV\n");
+			break;
+		default:
+			printf("Transaction mode = (%d) - UNKNOWN\n", rc);
+			break;
+		}
 
-	/* Check TransactionMode */
-	rc = l2manager_GetTransactionMode();
-	switch (rc) {
-	case 1:
-		printf("Transaction mode = Magstripe\n");
-		break;
-	case 2:
-		printf("Transaction mode = Magstripe [CVN_17]\n");
-		break;
-	case 3:
-		printf("Transaction mode = EMV\n");
-		break;
-	default:
-		printf("Transaction mode = (%d) - UNKNOWN\n", rc);
-		break;
-	}
+		/* Needed for Mastercard processing */
+		/* This function is used to clear TORN for paypass transactions */
+		result = l2manager_ClearTorn();
+		if (result != L2TRUE)
+			printf("Error in function l2manager_ClearTorn()\n");
 
-	/* Needed for Mastercard processing */
-	/* This function is used to clear TORN for paypass transactions */
-	result = l2manager_ClearTorn();
-	if (result != L2TRUE)
-		printf("Error in function l2manager_ClearTorn()\n");
-
-	/* Wait x seconds for RFID card to be removed from the terminal. */
-	printf("Please remove card...\n");
-	rc = feclr_wait_for_card_removal(fd,
-					 WAIT_FOR_CARD_REMOVAL_TIMEOUT,
-					 &status);
-	if (rc < 0) {
-		printf("Wait for card removal failed with error: \"%s\"\n",
-								  strerror(rc));
-		goto err6;
-	} else if (status != FECLR_STS_OK) {
-		printf("Wait for card removal failed with status: 0x%08llX\n",
-									status);
-		goto err6;
+		/* Wait x seconds for RFID card to be removed from the terminal. */
+		printf("Please remove card...\n");
+		rc = feclr_wait_for_card_removal(fd,
+						 WAIT_FOR_CARD_REMOVAL_TIMEOUT,
+						 &status);
+		if (rc < 0) {
+			printf("Wait for card removal failed with error: \"%s\"\n",
+									  strerror(rc));
+			goto err6;
+		} else if (status != FECLR_STS_OK) {
+			printf("Wait for card removal failed with status: 0x%08llX\n",
+										status);
+			goto err6;
+		}
+		printf("Card removed...\n");
 	}
 
 err6:
-	/* switch all leds off */
-	leds_set(0);
 
 	/* Stop the polling loop */
 	rc = feclr_stop_polling(fd);
 	if (rc < 0) {
 		printf("Stop polling failed with error: \"%s\"\n",
 								  strerror(rc));
-		goto err1;
+		goto err3;
 	}
 
 err5:
@@ -1000,11 +1384,13 @@ err1:
 	logout_and_close_session(&hSession);
 
 	//Send all offline accepted transactions to CC
-	if (rcTransaction == EMV_OFFLINE_ACCEPT) {
-		doSslCall(outputBuffer);
-	}
+//	if (rcTransaction == EMV_OFFLINE_ACCEPT) {
+//		doSslCall(outputBuffer);
+//	}
 
-	free(outputBuffer);
+	//wait for thread to finish
+	pthread_join(inc_x_thread,NULL);
+
 
 	return rc;
 }

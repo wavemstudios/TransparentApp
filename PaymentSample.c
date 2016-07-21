@@ -940,6 +940,8 @@ start:
 			continue;
 		}
 
+		//TODO Detect all cards
+
 		/* Evaluate transponder data */
 		/** At this point you could evaluate the card data (tech and tech_data).
 		 * You could evaluate the card type and maybe do some "closed loop"
@@ -1003,6 +1005,27 @@ start:
 				visualization_mifare_ultralight(&tag, &new_tag);
 				continue;
 
+			case FEMEMCARD_TAG_TYPE_MIFARE_DESFIRE:
+				/* mifare desfire detected */
+				printf("mifare desfire detected\n");
+				tag = 1;
+				visualization_mifare_desfire(&tag, &new_tag);
+				continue;
+
+			case FEMEMCARD_TAG_TYPE_MIFARE_PL_SL3:
+				/* mifare plus detected */
+				printf("mifare plus detected\n");
+				tag = 1;
+				visualization_mifare_plus(&tag, &new_tag);
+				continue;
+
+			case FEMEMCARD_TAG_TYPE_MIFARE_EMULATION:
+				/* mifare classic detected */
+				printf("mifare classic detected\n");
+				tag = 1;
+				visualization_mifare_classic(&tag, &new_tag);
+				continue;
+
 			case FEMEMCARD_TAG_TYPE_UNKNOWN:
 			case FEMEMCARD_TAG_TYPE_SLE55R_XXXX:
 				if (tech & FECLR_TECH_ISO14443A) {
@@ -1032,32 +1055,6 @@ start:
 			 ((tech_data.iso14443b.atqb[10] & 0x01) == 0x00))) {
 			printf("Transponder is not ISO/IEC 14443-4 compatible !\n");
 			continue;
-		}
-
-
-		if (tech & (FECLR_TECH_ISO14443A | FECLR_TECH_ISO14443B)) {
-			switch (tag_typ) {
-			case FEMEMCARD_TAG_TYPE_MIFARE_DESFIRE:
-				/* mifare desfire detected */
-				printf("mifare desfire detected\n");
-				tag = 1;
-				visualization_mifare_desfire(&tag, &new_tag);
-				continue;
-
-			case FEMEMCARD_TAG_TYPE_MIFARE_PL_SL3:
-				/* mifare plus detected */
-				printf("mifare plus detected\n");
-				tag = 1;
-				visualization_mifare_plus(&tag, &new_tag);
-				continue;
-
-			case FEMEMCARD_TAG_TYPE_MIFARE_EMULATION:
-				/* mifare classic detected */
-				printf("mifare classic detected\n");
-				tag = 1;
-				visualization_mifare_classic(&tag, &new_tag);
-				continue;
-			}
 		}
 
 		/* Select the ISO/IEC 14443-4 protocol to communicate with the RFID

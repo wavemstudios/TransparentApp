@@ -53,6 +53,7 @@
 #include "tlv.h"
 #include "emvTagList.h"
 #include "sslCall.h"
+#include "asn1.h"
 
 #define WAIT_FOR_CARD_INSERTION_TIMEOUT	200000LL /* 2 seconds in us*/
 #define WAIT_FOR_CARD_REMOVAL_TIMEOUT	30000000LL /* 30 seconds in us*/
@@ -78,6 +79,147 @@ void *thread_doSslCall(void *body){
 	printf("\n\n\nthread_doSslCall here2...\n");
 
 	return NULL;
+}
+
+int check_2pay_sys(unsigned char *rsp, int lr)
+{
+	char *MC_RID = "\xA0\x00\x00\x00\x04";	      /* MasterCard RID */
+	char *MC_UK_RID = "\xA0\x00\x00\x00\x05";     /* MasterCard UK RID */
+	char *VISA_RID = "\xA0\x00\x00\x00\x03";      /* Visa RID */
+	char *AMEX_RID = "\xA0\x00\x00\x00\x25";      /* AMEX RID */
+	char *DISCOVER_RID = "\xA0\x00\x00\x03\x24";  /* AMEX RID */
+	char *GIROGO_RID = "\xD2\x76\x00\x00\x25";    /* Geldkarte/GiroGo RID */
+	unsigned char *fci_issuer_discret_data;
+	int fci_issuer_discret_data_len = 0;
+	unsigned char *aid = NULL;
+	int aid_len;
+	unsigned char *app_template = NULL;
+	int app_template_len = 0;
+	unsigned char *tmp_aid = NULL;
+	int tmp_aid_len;
+	unsigned char *app_label = NULL;
+	int app_label_len = 0;
+	int priority = 15;
+	unsigned char *prio = NULL;
+	int prio_len;
+	unsigned char *d;
+
+	fci_issuer_discret_data = asn1Find(rsp, "\x6F\xA5\xBF\x0C", 3);
+	if (fci_issuer_discret_data == NULL)
+		return -1;
+
+	asn1Tag(&fci_issuer_discret_data);
+	fci_issuer_discret_data_len = asn1Length(&fci_issuer_discret_data);
+
+	while (fci_issuer_discret_data_len > 4) {
+		app_template = asn1Find(fci_issuer_discret_data, "\x61", 1);
+		if (app_template == NULL)
+			break;
+
+		asn1Tag(&app_template);
+		app_template_len = asn1Length(&app_template);
+		d = app_template;
+		/* Decode the AID */
+		tmp_aid = asn1Find(d, "\x4F", 1);
+		if (tmp_aid == NULL)
+			return -1;
+
+		asn1Tag(&tmp_aid);
+		tmp_aid_len = asn1Length(&tmp_aid);
+		d = tmp_aid + tmp_aid_len;
+		/* Decode the application label */
+		app_label = asn1Find(d, "\x50", 1);
+		if (app_label != NULL) {
+			asn1Tag(&app_label);
+			app_label_len = asn1Length(&app_label);
+			d = app_label + app_label_len;
+		}
+		/* Decode the priority */
+		prio = asn1Find(d, "\x87", 1);
+		if (prio != NULL) {
+			asn1Tag(&prio);
+			prio_len = asn1Length(&prio);
+			d = prio + prio_len;
+
+			if (*prio < priority) {
+				priority = *prio;
+				aid = tmp_aid;
+				aid_len = tmp_aid_len;
+			}
+		} else {
+			aid = tmp_aid;
+			aid_len = tmp_aid_len;
+		}
+
+		fci_issuer_discret_data_len -= app_template_len;
+		fci_issuer_discret_data = d;
+	}
+
+	if (aid == NULL)
+		return -1;
+
+	/* We need at least the first five bytes of the AID (RID) */
+	if (aid_len < 5)
+		return -1;
+
+	if ((memcmp(aid, MC_RID, 5) == 0) || (memcmp(aid, MC_UK_RID, 5) == 0))
+		return 1;
+	else if (memcmp(aid, VISA_RID, 5) == 0)
+		return 2;
+	else if (memcmp(aid, AMEX_RID, 5) == 0)
+		return 3;
+	else if (memcmp(aid, DISCOVER_RID, 5) == 0)
+		return 4;
+	else if (memcmp(aid, GIROGO_RID, 5) == 0)
+		return 5;
+
+	/* AID (RID) not supported */
+	return -1;
+}
+
+void disable_bar()
+{
+	leds_off(LEDS_GREEN1 | LEDS_GREEN2 | LEDS_GREEN3 |
+		 LEDS_YELLOW | LEDS_RED);
+}
+
+static void enable_running_led(void)
+{
+	leds_on(LEDS_GREEN0);
+}
+
+static void startup_visualization(void)
+{
+	leds_on(LEDS_GREEN1);
+
+	usleep(100000);
+
+	leds_on(LEDS_YELLOW);
+
+	usleep(100000);
+
+	leds_on(LEDS_RED);
+
+	usleep(100000);
+
+	leds_off(LEDS_GREEN1 | LEDS_YELLOW | LEDS_RED);
+
+	buzzer_beep(659, 150);
+	buzzer_beep(740, 150);
+	buzzer_beep(830, 150);
+	buzzer_beep(987, 300);
+}
+
+int verify_icc_response(unsigned char *rsp, int lr, unsigned short sw)
+{
+	unsigned short sw_rsp;
+
+	if (lr < 2)
+		return -1;
+
+	sw_rsp = (rsp[lr - 2] << 8) | rsp[lr - 1];
+
+	return sw_rsp == sw ? 0 : -1;
 }
 
 static void visualization_mifare_classic(int *tag, int *new_tag)
@@ -144,6 +286,8 @@ static void visualization_mifare_desfire(int *tag, int *new_tag)
 	}
 }
 
+
+
 static void visualization_credit(int *tag, int *new_tag)
 {
 	if ((*tag) && (*new_tag)) {
@@ -175,6 +319,8 @@ static void visualization_girogo(int *tag, int *new_tag)
 		*tag = 0;
 	}
 }
+
+
 
 static void visualization_cipurse(int *tag, int *new_tag)
 {
@@ -759,6 +905,7 @@ int main(int argc, char *argv[])
 	int fd = 0;
 	int rc = 0;
 	int i = 0;
+	int isEMV =0;
 	/************************/
 	l2bool result = L2FALSE;
 	UIRequest onRequestOutcome;
@@ -780,6 +927,8 @@ int main(int argc, char *argv[])
 	size_t rx_frame_size;
 	uint8_t rx_last_bits;
 	char *SELECT_2PAY_SYS = "\x00\xA4\x04\x00\x0E\x32\x50\x41\x59\x2E\x53\x59\x53\x2E\x44\x44\x46\x30\x31\x00";
+	char *SELECT_EF_ID_INFO = "\x00\xA4\x00\x00\x02\x2F\xF7";
+	char *SELECT_EF_ACCESS = "\x00\xA4\x02\x0C\x02\x01\x1C";
 	int new_tag = 0, tag = 0;
 	uint16_t tag_typ = FEMEMCARD_TAG_TYPE_UNKNOWN;
 
@@ -810,6 +959,10 @@ int main(int argc, char *argv[])
 		printf("led_init failed with error: \"%s\"\n", strerror(rc));
 		goto err2;
 	}
+
+	/* Enable logo leds */
+	leds_on(LEDS_LOGO0 | LEDS_LOGO1);
+	startup_visualization();
 
 	/* Acquire exclusive access to the FEIG ContactLess Reader device 0 */
 	fd = open(FECLR_DEVICE, O_RDWR);
@@ -890,13 +1043,14 @@ reset:
 //	memcpy(tp.m_5F2A_TransactionCurrencyCode, "\x02\x08\x26", 3);
 
 
-	/* enable green LED 0 */
-	leds_set(LEDS_GREEN0);
-
 start:
+
+	disable_bar();
+	enable_running_led();
 
 	new_tag = 1;
 	tag = 0;
+	isEMV = 0;
 	/* Start the EMVCo compliant polling loop and poll for ISO/IEC 14443-A
 	 * and ISO/IEC 14443-B compatible RFID cards.
 	 */
@@ -920,6 +1074,12 @@ start:
 	/* Wait for x seconds for an RFID card to be presented. */
 	printf("Please present card...\n");
 	while (1) {
+
+#ifdef DEBUG
+		fflush(stdout);
+#endif
+
+		isEMV = 0;
 		rc = feclr_wait_for_card(fd,
 					 WAIT_FOR_CARD_INSERTION_TIMEOUT,
 					 &tech,
@@ -934,9 +1094,9 @@ start:
 		} else if (status != FECLR_STS_OK) {
 			new_tag = 1;
 			tag = 0;
-			if (status != FECLR_STS_TIMEOUT){
-				printf("Wait for card failed with status: 0x%08llX\n", status);
-			}
+//			if (status != FECLR_STS_TIMEOUT){
+//				printf("Wait for card failed with status: 0x%08llX\n", status);
+//			}
 			continue;
 		}
 
@@ -953,7 +1113,9 @@ start:
 
 		if (tech & FECLR_TECH_FELICA) {
 			/* felica detected */
-			printf("felica detected\n");
+			if (new_tag) {
+				printf("felica detected\n");
+			}
 			tag = 1;
 			visualization_felica(&tag, &new_tag);
 			continue;
@@ -962,7 +1124,9 @@ start:
 		if ((tech & FECLR_TECH_ISO14443A) &&
 		    (tech_data.iso14443a_jewel.type == FECLR_TECH_JEWEL)) {
 			/* jewel detected */
-			printf("jewel detected\n");
+			if (new_tag) {
+				printf("jewel detected\n");
+			}
 			tag = 1;
 			visualization_jewel(&tag, &new_tag);
 			continue;
@@ -985,7 +1149,9 @@ start:
 			case FEMEMCARD_TAG_TYPE_MIFARE_PL_SL1_2K:
 			case FEMEMCARD_TAG_TYPE_MIFARE_PL_SL1_4K:
 				/* mifare classic detected */
-				printf("mifare classic detected\n");
+				if (new_tag) {
+					printf("mifare classic 1k 2k 4k mini detected\n");
+				}
 				tag = 1;
 				visualization_mifare_classic(&tag, &new_tag);
 				continue;
@@ -993,37 +1159,20 @@ start:
 			case FEMEMCARD_TAG_TYPE_MIFARE_PL_SL2_2K:
 			case FEMEMCARD_TAG_TYPE_MIFARE_PL_SL2_4K:
 				/* mifare plus detected */
-				printf("mifare plus detected\n");
+				if (new_tag) {
+					printf("mifare plus 2k or 4k detected\n");
+				}
 				tag = 1;
 				visualization_mifare_plus(&tag, &new_tag);
 				continue;
 
 			case FEMEMCARD_TAG_TYPE_NFC_TAG_TYP_2:
 				/* nfc tag type 2 detected */
-				printf("nfc tag type 2 detected\n");
+				if (new_tag) {
+					printf("nfc tag type 2 detected\n");
+				}
 				tag = 1;
 				visualization_mifare_ultralight(&tag, &new_tag);
-				continue;
-
-			case FEMEMCARD_TAG_TYPE_MIFARE_DESFIRE:
-				/* mifare desfire detected */
-				printf("mifare desfire detected\n");
-				tag = 1;
-				visualization_mifare_desfire(&tag, &new_tag);
-				continue;
-
-			case FEMEMCARD_TAG_TYPE_MIFARE_PL_SL3:
-				/* mifare plus detected */
-				printf("mifare plus detected\n");
-				tag = 1;
-				visualization_mifare_plus(&tag, &new_tag);
-				continue;
-
-			case FEMEMCARD_TAG_TYPE_MIFARE_EMULATION:
-				/* mifare classic detected */
-				printf("mifare classic detected\n");
-				tag = 1;
-				visualization_mifare_classic(&tag, &new_tag);
 				continue;
 
 			case FEMEMCARD_TAG_TYPE_UNKNOWN:
@@ -1031,14 +1180,18 @@ start:
 				if (tech & FECLR_TECH_ISO14443A) {
 					/* No ISO 14443-4 tag */
 					/* ISO14443A detected */
-					printf("No ISO 14443-4 tag - ISO14443A detected\n");
+					if (new_tag) {
+						printf("No ISO 14443-4 tag - ISO14443A detected\n");
+					}
 					tag = 1;
 					visualization_iso14443a(&tag, &new_tag);
 					continue;
 				} else if (tech & FECLR_TECH_ISO14443B) {
 					/* No ISO 14443-4 tag */
 					/* ISO14443B detected */
-					printf("No ISO 14443-4 tag - ISO14443B detected\n");
+					if (new_tag) {
+						printf("No ISO 14443-4 tag - ISO14443B detected\n");
+					}
 					tag = 1;
 					visualization_iso14443b(&tag, &new_tag);
 					continue;
@@ -1074,15 +1227,18 @@ start:
 		if (status != FECLR_STS_OK) {
 			if (tech & FECLR_TECH_ISO14443A) {
 				/* ISO14443A detected */
-				printf("ISO14443A detected\n");
+				if (new_tag) {
+					printf("ISO14443A detected\n");
+				}
 				tag = 1;
 				visualization_iso14443a(&tag, &new_tag);
 				continue;
 			}
 			if (tech & FECLR_TECH_ISO14443B) {
 				/* ISO14443B detected */
-				printf("ISO14443B detected\n");
-
+				if (new_tag) {
+					printf("ISO14443B detected\n");
+				}
 				tag = 1;
 				visualization_iso14443b(&tag, &new_tag);
 				continue;
@@ -1090,7 +1246,175 @@ start:
 			continue;
 		}
 
+//*********TEST IF EMV CARD
 
+		/* Select 2PAY.SYS.DDF01 */
+		rc = feclr_transceive(fd, 0,
+				      SELECT_2PAY_SYS, 20, 0,
+				      rsp_buffer, sizeof(rsp_buffer),
+				      &rx_frame_size, &rx_last_bits,
+				      0,
+				      &status);
+		if (rc < 0) {
+			printf("Transceive failed with error: \"%s\"\n",
+								  strerror(rc));
+			feclr_stop_polling(fd);
+			goto start;
+		}
+
+		if (status != FECLR_STS_OK) {
+			printf("Transceive status: 0x%08llX\n", status);
+			continue;
+		}
+
+		if (!verify_icc_response(rsp_buffer, rx_frame_size, 0x9000)) {
+			if (asn1Validate(rsp_buffer, rx_frame_size - 2) == 0) {
+				rc = check_2pay_sys(rsp_buffer, rx_frame_size);
+				printf(" check_2pay_sys rc value = %d\n",rc);
+				if (rc == 1) {
+					/* MASTER Card detected */
+					printf(" MASTER Card detected\n");
+					tag = 1;
+					isEMV = 1;
+				} else if (rc == 2) {
+					/* VISA Card detected */
+					printf("VISA Card detected\n");
+					tag = 1;
+					isEMV = 1;
+				} else if (rc == 3) {
+					/* AMEX Card detected */
+					printf("AMEX Card detected\n");
+					tag = 1;
+					isEMV = 1;
+				} else if (rc == 4) {
+					/* DISCOVER Card detected */
+					printf("DISCOVER Card detected\n");
+					tag = 1;
+					isEMV = 1;
+				} else if (rc == 5) {
+					/* GIROGO Card detected */
+					printf("GIROGO Card detected\n");
+					tag = 1;
+					visualization_girogo(&tag, &new_tag);
+					tag = 1;
+					continue;
+				}
+			}
+		}
+
+//*********END TEST EMV CARD
+
+//********* Do this if not EMV
+
+		if (!isEMV){
+			/* Select EF.ID_INFO of CIPURSE */
+			rc = feclr_transceive(fd, 0,
+						  SELECT_EF_ID_INFO, 7, 0,
+						  rsp_buffer, sizeof(rsp_buffer),
+						  &rx_frame_size, &rx_last_bits,
+						  0,
+						  &status);
+			if (rc < 0) {
+				printf("Transceive failed with error: \"%s\"\n",
+									  strerror(rc));
+				feclr_stop_polling(fd);
+				goto start;
+			}
+
+			if (status != FECLR_STS_OK) {
+				/* printf("Transceive status: 0x%08llX\n", status); */
+				continue;
+			}
+
+			if (!verify_icc_response(rsp_buffer, rx_frame_size, 0x9000)) {
+				/* ISO14443-4 detected */
+				if (new_tag) {
+					printf("cipurse.bmp\n");
+				}
+				tag = 1;
+				visualization_cipurse(&tag, &new_tag);
+				continue;
+			}
+
+			/* Select EF.CardAccess */
+			rc = feclr_transceive(fd, 0,
+						  SELECT_EF_ACCESS, 7, 0,
+						  rsp_buffer, sizeof(rsp_buffer),
+						  &rx_frame_size, &rx_last_bits,
+						  0,
+						  &status);
+			if (rc < 0) {
+				printf("Transceive failed with error: \"%s\"\n",
+									  strerror(rc));
+				feclr_stop_polling(fd);
+				goto start;
+			}
+
+			if (status != FECLR_STS_OK) {
+				/* printf("Transceive status: 0x%08llX\n", status); */
+				continue;
+			}
+
+			if (!verify_icc_response(rsp_buffer, rx_frame_size, 0x9000)) {
+				/* ISO14443-4 detected */
+				if (new_tag) {
+					printf("iso144434.bmp\n");
+				}
+				tag = 1;
+				if (tech == FECLR_TECH_ISO14443A)
+					visualization_iso14443a(&tag, &new_tag);
+				else if (tech == FECLR_TECH_ISO14443B)
+					visualization_iso14443b(&tag, &new_tag);
+				continue;
+			}
+
+			if (tech & (FECLR_TECH_ISO14443A | FECLR_TECH_ISO14443B)) {
+				switch (tag_typ) {
+				case FEMEMCARD_TAG_TYPE_MIFARE_DESFIRE:
+					/* mifare desfire detected */
+					if (new_tag) {
+						printf("mifare_desfire.bmp\n");
+					}
+					tag = 1;
+					visualization_mifare_desfire(&tag, &new_tag);
+					continue;
+
+				case FEMEMCARD_TAG_TYPE_MIFARE_PL_SL3:
+					/* mifare plus detected */
+					if (new_tag) {
+						printf("mifare_plus.bmp\n");
+					}
+					tag = 1;
+					visualization_mifare_plus(&tag, &new_tag);
+					continue;
+
+				case FEMEMCARD_TAG_TYPE_MIFARE_EMULATION:
+					/* mifare classic detected */
+					if (new_tag) {
+						printf("mifare_classic emulation.bmp\n");
+					}
+					tag = 1;
+					visualization_mifare_classic(&tag, &new_tag);
+					continue;
+				}
+			}
+
+			/* ISO14443-4 detected */
+			if (new_tag) {
+				printf("Unknown iso144434 Card\n");
+			}
+			tag = 1;
+			if (tech == FECLR_TECH_ISO14443A){
+					visualization_iso14443a(&tag, &new_tag);
+			} else if (tech == FECLR_TECH_ISO14443B){
+					visualization_iso14443b(&tag, &new_tag);
+			}
+
+			//Catch all - continue without EMV
+			continue;
+		}
+
+		//If we are here we must have a valid EMV card
 
 		/* Perform EMVCo L2 transaction */
 		rcTransaction = l2manager_PerformTransaction(&tp,
@@ -1262,13 +1586,8 @@ start:
 						printf("\n\n\nThread created...\n");
 					}
 
-
-					leds_set(LEDS_GREEN0 );
-					leds_set(LEDS_GREEN0 | LEDS_GREEN1);
-					leds_set(LEDS_GREEN0 | LEDS_GREEN1 | LEDS_GREEN2);
-					leds_set(LEDS_GREEN0 | LEDS_GREEN1 | LEDS_GREEN2 | LEDS_GREEN3);
-					buzzer_beep(1500, 500);
-					usleep(200000);
+					tag=1;
+					visualization_credit(&tag, &new_tag);
 					ResetTransactionData(&tp,&onRequestOutcome,&onRestartOutcome);
 					/* enable green LED 0 */
 					leds_set(LEDS_GREEN0);

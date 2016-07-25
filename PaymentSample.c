@@ -25,6 +25,7 @@
  */
 
 #include <stdio.h>
+#include <stdbool.h>
 #include <string.h>
 #include <execinfo.h>
 #include <stdlib.h>
@@ -41,8 +42,6 @@
 #include <emv-l2/l2paypass.h>
 #include <emv-l2/l2discover.h>
 #include <feig/feclr.h>
-#include <feig/leds.h>
-#include <feig/buzzer.h>
 #include <feig/fememcard.h>
 #include <sys/socket.h>
 #include <netdb.h>
@@ -55,14 +54,18 @@
 #include "sslCall.h"
 #include "asn1.h"
 
+//****Code separation START
+
+#include "ledBuzzerController.h"
+
 #define WAIT_FOR_CARD_INSERTION_TIMEOUT	200000LL /* 2 seconds in us*/
 #define WAIT_FOR_CARD_REMOVAL_TIMEOUT	30000000LL /* 30 seconds in us*/
 
-#define PAYMENT_SAMPLE_VERSION	"01.04.00"
+#define PAYMENT_APP_VERSION	"01.00.00"
 
 #define EMV_ONLINE_SUCCESS	1    /* !< Force Valid Online Response */
 
-#define FECLR_DEVICE		"/dev/feclr0"
+#define FECLR_DEVICE		"/dev/feclr0" /* Card reader */
 
 static int gfeclr_fd = -1;
 static L2Outcome gL2Outcome;
@@ -177,38 +180,7 @@ int check_2pay_sys(unsigned char *rsp, int lr)
 	return -1;
 }
 
-void disable_bar()
-{
-	leds_off(LEDS_GREEN1 | LEDS_GREEN2 | LEDS_GREEN3 |
-		 LEDS_YELLOW | LEDS_RED);
-}
 
-static void enable_running_led(void)
-{
-	leds_on(LEDS_GREEN0);
-}
-
-static void startup_visualization(void)
-{
-	leds_on(LEDS_GREEN1);
-
-	usleep(100000);
-
-	leds_on(LEDS_YELLOW);
-
-	usleep(100000);
-
-	leds_on(LEDS_RED);
-
-	usleep(100000);
-
-	leds_off(LEDS_GREEN1 | LEDS_YELLOW | LEDS_RED);
-
-	buzzer_beep(659, 150);
-	buzzer_beep(740, 150);
-	buzzer_beep(830, 150);
-	buzzer_beep(987, 300);
-}
 
 int verify_icc_response(unsigned char *rsp, int lr, unsigned short sw)
 {
@@ -222,184 +194,7 @@ int verify_icc_response(unsigned char *rsp, int lr, unsigned short sw)
 	return sw_rsp == sw ? 0 : -1;
 }
 
-static void visualization_mifare_classic(int *tag, int *new_tag)
-{
-	if ((*tag) && (*new_tag)) {
-		buzzer_on(1500);
-		leds_off(LEDS_GREEN1 | LEDS_GREEN2 | LEDS_GREEN3 |
-			 LEDS_YELLOW | LEDS_RED);
-		usleep(100000);
-		usleep(100000);
-		leds_on(LEDS_RED);
-		buzzer_off();
-		*new_tag = 0;
-		*tag = 0;
-	}
-}
 
-static void visualization_mifare_plus(int *tag, int *new_tag)
-{
-	if ((*tag) && (*new_tag)) {
-		buzzer_on(1500);
-		leds_off(LEDS_GREEN1 | LEDS_GREEN2 | LEDS_GREEN3 |
-			 LEDS_YELLOW | LEDS_RED);
-		usleep(100000);
-		leds_on(LEDS_GREEN2);
-		usleep(100000);
-		leds_on(LEDS_RED);
-		buzzer_off();
-		*new_tag = 0;
-		*tag = 0;
-	}
-}
-
-static void visualization_mifare_ultralight(int *tag, int *new_tag)
-{
-	if ((*tag) && (*new_tag)) {
-		buzzer_on(1500);
-		leds_off(LEDS_GREEN1 | LEDS_GREEN2 | LEDS_GREEN3 |
-			 LEDS_YELLOW | LEDS_RED);
-		usleep(100000);
-		leds_on(LEDS_GREEN1);
-		usleep(100000);
-		leds_on(LEDS_RED);
-		buzzer_off();
-		*new_tag = 0;
-		*tag = 0;
-	}
-}
-
-static void visualization_mifare_desfire(int *tag, int *new_tag)
-{
-	if ((*tag) && (*new_tag)) {
-		buzzer_on(1500);
-		leds_off(LEDS_GREEN1 | LEDS_GREEN2 | LEDS_GREEN3 |
-			 LEDS_YELLOW | LEDS_RED);
-		leds_on(LEDS_GREEN1);
-		usleep(100000);
-		leds_on(LEDS_GREEN2);
-		usleep(100000);
-		leds_on(LEDS_RED);
-		buzzer_off();
-		*new_tag = 0;
-		*tag = 0;
-	}
-}
-
-
-
-static void visualization_credit(int *tag, int *new_tag)
-{
-	if ((*tag) && (*new_tag)) {
-		buzzer_on(1500);
-		leds_off(LEDS_GREEN1 | LEDS_GREEN2 | LEDS_GREEN3 |
-			 LEDS_YELLOW | LEDS_RED);
-		leds_on(LEDS_GREEN1);
-		usleep(100000);
-		leds_on(LEDS_GREEN2);
-		usleep(100000);
-		leds_on(LEDS_GREEN3);
-		buzzer_off();
-		usleep(300000);
-		*new_tag = 0;
-		*tag = 0;
-	}
-}
-
-static void visualization_girogo(int *tag, int *new_tag)
-{
-	if ((*tag) && (*new_tag)) {
-		buzzer_on(1500);
-		leds_off(LEDS_GREEN1 | LEDS_GREEN2 | LEDS_GREEN3 |
-			 LEDS_YELLOW | LEDS_RED);
-		usleep(100000);
-		leds_on(LEDS_GREEN2);
-		usleep(100000);
-		buzzer_off();
-		*new_tag = 0;
-		*tag = 0;
-	}
-}
-
-
-
-static void visualization_cipurse(int *tag, int *new_tag)
-{
-	if ((*tag) && (*new_tag)) {
-		buzzer_on(1500);
-		leds_off(LEDS_GREEN1 | LEDS_GREEN2 | LEDS_GREEN3 |
-			 LEDS_YELLOW | LEDS_RED);
-		usleep(100000);
-		leds_on(LEDS_YELLOW | LEDS_RED);
-		usleep(100000);
-		buzzer_off();
-		*new_tag = 0;
-		*tag = 0;
-	}
-}
-
-static void visualization_iso14443a(int *tag, int *new_tag)
-{
-	if ((*tag) && (*new_tag)) {
-		buzzer_on(1500);
-		leds_off(LEDS_GREEN1 | LEDS_GREEN2 | LEDS_GREEN3 |
-			 LEDS_YELLOW | LEDS_RED);
-		leds_on(LEDS_GREEN1);
-		usleep(100000);
-		leds_on(LEDS_YELLOW);
-		usleep(100000);
-		leds_on(LEDS_RED);
-		buzzer_off();
-		*new_tag = 0;
-		*tag = 0;
-	}
-}
-
-static void visualization_iso14443b(int *tag, int *new_tag)
-{
-	if ((*tag) && (*new_tag)) {
-		buzzer_on(1500);
-		leds_off(LEDS_GREEN1 | LEDS_GREEN2 | LEDS_GREEN3 |
-			 LEDS_YELLOW | LEDS_RED);
-		leds_on(LEDS_GREEN1);
-		usleep(100000);
-		leds_on(LEDS_YELLOW);
-		usleep(100000);
-		buzzer_off();
-		*new_tag = 0;
-		*tag = 0;
-	}
-}
-
-static void visualization_jewel(int *tag, int *new_tag)
-{
-	if ((*tag) && (*new_tag)) {
-		buzzer_on(1500);
-		leds_off(LEDS_GREEN1 | LEDS_GREEN2 | LEDS_GREEN3 |
-			 LEDS_YELLOW | LEDS_RED);
-		usleep(100000);
-		usleep(100000);
-		leds_on(LEDS_GREEN3);
-		buzzer_off();
-		*new_tag = 0;
-		*tag = 0;
-	}
-}
-
-static void visualization_felica(int *tag, int *new_tag)
-{
-	if ((*tag) && (*new_tag)) {
-		buzzer_on(1500);
-		leds_off(LEDS_GREEN1 | LEDS_GREEN2 | LEDS_GREEN3 |
-			 LEDS_YELLOW | LEDS_RED);
-		usleep(100000);
-		leds_on(LEDS_YELLOW);
-		usleep(100000);
-		buzzer_off();
-		*new_tag = 0;
-		*tag = 0;
-	}
-}
 
 static void ResetTransactionData(L2ExternalTransactionParameters *tp, UIRequest *onRequestOutcome, UIRequest *onRestartOutcome)
 {
@@ -906,7 +701,7 @@ int main(int argc, char *argv[])
 	int fd = 0;
 	int rc = 0;
 	int i = 0;
-	int isEMV =0;
+	bool isEMV = false;
 	/************************/
 	l2bool result = L2FALSE;
 	UIRequest onRequestOutcome;
@@ -922,6 +717,7 @@ int main(int argc, char *argv[])
 	int rcTransaction = 0;
 	int rcResponse = 0;
 	pthread_t inc_x_thread;
+	bool threadRunning = false;
 
 	unsigned char cmd_buffer[261];
 	unsigned char rsp_buffer[258];
@@ -938,31 +734,30 @@ int main(int argc, char *argv[])
 	L2ExternalTransactionParameters tp;
 	CK_SESSION_HANDLE hSession = CK_INVALID_HANDLE;
 
-	printf("Payment sample version %s started\n\n", PAYMENT_SAMPLE_VERSION);
+	printf("Payment application version %s started\n\n", PAYMENT_APP_VERSION);
 	/* Print EMVCo Kernel versions */
 	PrintEMVCoL2Versions();
 
+reset:
 	/* Login to PKCS11 interface */
 	rc = open_session_and_login(&hSession, FEPKCS11_APP0_TOKEN_SLOT_ID);
 	if (rc != EXIT_SUCCESS)
 		return -1;
 
 	/* Initialize buzzer interface */
-	rc = buzzer_init();
+	rc = initialise_buzzer();
 	if (rc < 0) {
 		printf("buzzer_init failed with error: \"%s\"\n", strerror(rc));
 		goto err1;
 	}
 
 	/* Initialize led interface */
-	rc = leds_init();
+	rc = initialise_leds();
 	if (rc < 0) {
 		printf("led_init failed with error: \"%s\"\n", strerror(rc));
 		goto err2;
 	}
 
-	/* Enable logo leds */
-	leds_on(LEDS_LOGO0 | LEDS_LOGO1);
 	startup_visualization();
 
 	/* Acquire exclusive access to the FEIG ContactLess Reader device 0 */
@@ -1023,9 +818,6 @@ int main(int argc, char *argv[])
 		goto err5;
 	}
 
-reset:
-
-
 	ResetTransactionData(&tp,&onRequestOutcome,&onRestartOutcome);
 
 	/* Init EMVCo L2 outcome structure */
@@ -1051,7 +843,7 @@ start:
 
 	new_tag = 1;
 	tag = 0;
-	isEMV = 0;
+	isEMV = false;
 	/* Start the EMVCo compliant polling loop and poll for ISO/IEC 14443-A
 	 * and ISO/IEC 14443-B compatible RFID cards.
 	 */
@@ -1080,7 +872,7 @@ start:
 		fflush(stdout);
 #endif
 
-		isEMV = 0;
+		isEMV = false;
 		rc = feclr_wait_for_card(fd,
 					 WAIT_FOR_CARD_INSERTION_TIMEOUT,
 					 &tech,
@@ -1276,22 +1068,22 @@ start:
 					/* MASTER Card detected */
 					printf(" MASTER Card detected\n");
 					tag = 1;
-					isEMV = 1;
+					isEMV = true;
 				} else if (rc == 2) {
 					/* VISA Card detected */
 					printf("VISA Card detected\n");
 					tag = 1;
-					isEMV = 1;
+					isEMV = true;
 				} else if (rc == 3) {
 					/* AMEX Card detected */
 					printf("AMEX Card detected\n");
 					tag = 1;
-					isEMV = 1;
+					isEMV = true;
 				} else if (rc == 4) {
 					/* DISCOVER Card detected */
 					printf("DISCOVER Card detected\n");
 					tag = 1;
-					isEMV = 1;
+					isEMV = true;
 				} else if (rc == 5) {
 					/* GIROGO Card detected */
 					printf("GIROGO Card detected\n");
@@ -1548,10 +1340,10 @@ start:
 				case EMV_ONLINE_ACCEPT:
 					printf("%s returns with EMV_ONLINE_ACCEPT\n",
 						   "l2manager_ProcessOnlineResponse()");
-					/* EMVCo success tone.
-					 * Buzzer Beep @ 1500Hz for 500ms
-					 */
-					buzzer_beep(1500, 500);
+					tag = 1;
+					emvSuccessVisualization(&tag, &new_tag);
+					disable_bar();
+					enable_running_led();
 					break;
 				case EMV_ONLINE_DECLINE:
 					printf("%s returns with EMV_ONLINE_DECLINE\n",
@@ -1560,9 +1352,7 @@ start:
 					 * Buzzer Beep @ 750Hz for 200ms
 					 * [On -> Off -> On]
 					 */
-					buzzer_beep(750, 200);
-					usleep(200000);
-					buzzer_beep(750, 200);
+					emvAlertTone();
 					break;
 				default:
 					printf("%s returns with undefined code (%d)\n",
@@ -1572,9 +1362,7 @@ start:
 					 * Buzzer Beep @ 750Hz for 200ms
 					 * [On -> Off -> On]
 					 */
-					buzzer_beep(750, 200);
-					usleep(200000);
-					buzzer_beep(750, 200);
+					emvAlertTone();
 					break;
 				}
 			} else {
@@ -1583,6 +1371,12 @@ start:
 				 */
 				if (rcTransaction == EMV_OFFLINE_ACCEPT) {
 
+					if (threadRunning){
+					//wait for thread to finish
+					pthread_join(inc_x_thread,NULL);
+					threadRunning = false;
+					}
+
 
 					//Create thread for sending data
 					int err;
@@ -1590,16 +1384,17 @@ start:
 
 					if (err != 0){
 						printf("\n\n\nCan't create thread...\n");
+						threadRunning = false;
 					} else {
 						printf("\n\n\nThread created...\n");
+						threadRunning = true;
 					}
 
 					tag=1;
-					visualization_credit(&tag, &new_tag);
+					emvSuccessVisualization(&tag, &new_tag);
+					disable_bar();
+					enable_running_led();
 					ResetTransactionData(&tp,&onRequestOutcome,&onRestartOutcome);
-					/* enable green LED 0 */
-					leds_set(LEDS_GREEN0);
-
 				}
 			}
 			break;
@@ -1615,9 +1410,7 @@ start:
 			/* EMVCo alert tone.
 			 * Buzzer Beep @ 750Hz for 200ms [On -> Off -> On]
 			 */
-			buzzer_beep(750, 200);
-			usleep(200000);
-			buzzer_beep(750, 200);
+			emvAlertTone();
 			break;
 		/* case ...:
 		 *	break;
@@ -1627,9 +1420,7 @@ start:
 			/* EMVCo alert tone.
 			 * Buzzer Beep @ 750Hz for 200ms [On -> Off -> On]
 			 */
-			buzzer_beep(750, 200);
-			usleep(200000);
-			buzzer_beep(750, 200);
+			emvAlertTone();
 			break;
 		}
 
@@ -1712,9 +1503,11 @@ err1:
 //		doSslCall(outputBuffer);
 //	}
 
-	//wait for thread to finish
-	pthread_join(inc_x_thread,NULL);
+	if (threadRunning){
+		//wait for thread to finish
+		pthread_join(inc_x_thread,NULL);
+	}
 
 
-	return rc;
+	goto reset;
 }

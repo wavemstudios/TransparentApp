@@ -300,6 +300,7 @@ static void visualization_credit(int *tag, int *new_tag)
 		usleep(100000);
 		leds_on(LEDS_GREEN3);
 		buzzer_off();
+		usleep(300000);
 		*new_tag = 0;
 		*tag = 0;
 	}
@@ -1304,7 +1305,7 @@ start:
 
 //*********END TEST EMV CARD
 
-//********* Do this if not EMV
+//********* Do this if NOT EMV
 
 		if (!isEMV){
 			/* Select EF.ID_INFO of CIPURSE */
@@ -1357,14 +1358,18 @@ start:
 
 			if (!verify_icc_response(rsp_buffer, rx_frame_size, 0x9000)) {
 				/* ISO14443-4 detected */
-				if (new_tag) {
-					printf("iso144434.bmp\n");
-				}
 				tag = 1;
-				if (tech == FECLR_TECH_ISO14443A)
+				if (tech == FECLR_TECH_ISO14443A){
+					if (new_tag) {
+						printf("Jewel RFID iso144434A Card\n");
+					}
 					visualization_iso14443a(&tag, &new_tag);
-				else if (tech == FECLR_TECH_ISO14443B)
+				} else if (tech == FECLR_TECH_ISO14443B){
+					if (new_tag) {
+						printf("RFID iso144434B Card\n");
+					}
 					visualization_iso14443b(&tag, &new_tag);
+				}
 				continue;
 			}
 
@@ -1400,14 +1405,17 @@ start:
 			}
 
 			/* ISO14443-4 detected */
-			if (new_tag) {
-				printf("Unknown iso144434 Card\n");
-			}
 			tag = 1;
 			if (tech == FECLR_TECH_ISO14443A){
-					visualization_iso14443a(&tag, &new_tag);
+				if (new_tag) {
+					printf("Jewel RFID iso144434A Card\n");
+				}
+				visualization_iso14443a(&tag, &new_tag);
 			} else if (tech == FECLR_TECH_ISO14443B){
-					visualization_iso14443b(&tag, &new_tag);
+				if (new_tag) {
+					printf("RFID iso144434B Card\n");
+				}
+				visualization_iso14443b(&tag, &new_tag);
 			}
 
 			//Catch all - continue without EMV

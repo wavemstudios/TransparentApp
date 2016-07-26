@@ -8,6 +8,8 @@
 int initialise_leds()
 {
 	return leds_init();
+	/* Set leds brightness to 100% */
+	leds_brightness(100);
 }
 
 int initialise_buzzer()

@@ -43,9 +43,6 @@
 #include <emv-l2/l2discover.h>
 #include <feig/feclr.h>
 #include <feig/fememcard.h>
-#include <sys/socket.h>
-#include <netdb.h>
-#include <netinet/in.h>
 
 #include "macros.h"
 

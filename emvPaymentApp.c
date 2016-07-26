@@ -7,6 +7,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <stdint.h>
 #include <emv-l2/l2FeigHAL.h>
 #include <emv-l2/l2manager.h>
 #include <emv-l2/l2base.h>
@@ -16,9 +17,11 @@
 #include <emv-l2/l2paywave.h>
 #include <emv-l2/l2paypass.h>
 #include <emv-l2/l2discover.h>
+#include <feig/feclr.h>
 #include "asn1.h"
 
 static L2Outcome gL2Outcome;
+static int gfeclr_fd = -1;
 
 int check_2pay_sys(unsigned char *rsp, int lr)
 {
@@ -531,5 +534,103 @@ void PrintEMVCoL2Versions(void)
 	printf("\n");
 }
 
+
+#ifdef DEBUG
+//This callback is used in debug mode only
+int CardTransmitImplFeig(void *pl2, enum SSL2CommandTypes type,
+				ushort nInputLength, uchar *pucInput,
+				int *pnOutputLength, uchar *pucOutput,
+				int nOutputBufferSize)
+{
+	int rc = 0;
+	uint8_t rx_last_bits;
+	uint64_t status;
+	int idx = 0;
+
+	printf("-------------------------------------------\n");
+	printf("%s\n", __func__);
+	printf("-------------------------------------------\n");
+
+	printf("C-APDU: ");
+	for (idx = 0; idx < nInputLength; idx++)
+			printf("%02X ", pucInput[idx]);
+	printf("\n");
+
+	rc = feclr_transceive(gfeclr_fd,
+			      0,
+			      pucInput,
+			      nInputLength,
+			      0,
+			      pucOutput,
+			      nOutputBufferSize,
+			      (size_t *)pnOutputLength,
+			      &rx_last_bits,
+			      0,
+			      &status);
+	if (rc < 0) {
+		printf("APDU exchange failed with error: \"%s\"\n",
+		strerror(rc));
+		return SMARTCARD_FAIL;
+	}
+	if (status != FECLR_STS_OK) {
+		printf("APDU exchange failed with status: 0x%08llX\n", status);
+		return SMARTCARD_FAIL;
+	}
+
+	printf("R-APDU: ");
+	for (idx = 0; idx < *pnOutputLength; idx++)
+		printf("%02X ", pucOutput[idx]);
+	printf("\n\n");
+
+	return SMARTCARD_OK;
+}
+
+#endif
+
 //************************** Callbacks END
+
+int SetEmvCallbacks(int fd)
+{
+	int rc = 0;
+
+	/* save contactless interface file descriptor for access in callback */
+	gfeclr_fd = fd;
+
+	/* Register user-callbacks */
+	/* Callback to receive the Track2 / Track2 equivalent data as soon as
+	 * available.
+	 */
+	rc = l2FeigHAL_register_SendTrack2DataCallback(SendTrack2DataImplFeig);
+	if (rc != L2TRUE) {
+		printf("Register SendTrack2DataCallback failed\n");
+		return 1;
+	}
+
+	/* Callback to receive the Outcome data as soon as available.
+	 */
+	rc = l2FeigHAL_register_SendL2OutcomeCallback(SendL2UIOutcomeImplFeig);
+	if (rc != L2TRUE) {
+		printf("Register SendL2OutcomeCallback failed\n");
+		return 1;
+	}
+
+#ifdef DEBUG
+	/* APDU Trace Callback -> only needed for debug purpose */
+	rc = l2FeigHAL_register_CardTransmitCallback(CardTransmitImplFeig);
+	if (rc != L2TRUE) {
+		printf("Register SendL2OutcomeCallback failed\n");
+		return 1;
+	}
+
+#endif
+
+	/* UIRequest Callback */
+	rc = l2FeigHAL_register_UIRequestCallback(UIRequestCallbackImplFeig);
+	if (rc != L2TRUE) {
+		printf("Register UIRequestCallbackImplFeig failed\n");
+		return 1;
+	}
+	return 0;
+}
+
 

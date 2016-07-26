@@ -66,8 +66,6 @@
 
 #define FECLR_DEVICE		"/dev/feclr0" /* Card reader */
 
-static int gfeclr_fd = -1;
-
 //Thread for sending data online
 void *thread_doSslCall(void *body){
 
@@ -129,54 +127,6 @@ static void logout_and_close_session(CK_SESSION_HANDLE_PTR phSession)
 	C_CloseSession(*phSession);
 	C_Finalize(NULL_PTR);
 	*phSession = CK_INVALID_HANDLE;
-}
-
-int CardTransmitImplFeig(void *pl2, enum SSL2CommandTypes type,
-				ushort nInputLength, uchar *pucInput,
-				int *pnOutputLength, uchar *pucOutput,
-				int nOutputBufferSize)
-{
-	int rc = 0;
-	uint8_t rx_last_bits;
-	uint64_t status;
-	int idx = 0;
-
-	printf("-------------------------------------------\n");
-	printf("%s\n", __func__);
-	printf("-------------------------------------------\n");
-
-	printf("C-APDU: ");
-	for (idx = 0; idx < nInputLength; idx++)
-			printf("%02X ", pucInput[idx]);
-	printf("\n");
-
-	rc = feclr_transceive(gfeclr_fd,
-			      0,
-			      pucInput,
-			      nInputLength,
-			      0,
-			      pucOutput,
-			      nOutputBufferSize,
-			      (size_t *)pnOutputLength,
-			      &rx_last_bits,
-			      0,
-			      &status);
-	if (rc < 0) {
-		printf("APDU exchange failed with error: \"%s\"\n",
-		strerror(rc));
-		return SMARTCARD_FAIL;
-	}
-	if (status != FECLR_STS_OK) {
-		printf("APDU exchange failed with status: 0x%08llX\n", status);
-		return SMARTCARD_FAIL;
-	}
-
-	printf("R-APDU: ");
-	for (idx = 0; idx < *pnOutputLength; idx++)
-		printf("%02X ", pucOutput[idx]);
-	printf("\n\n");
-
-	return SMARTCARD_OK;
 }
 
 int main(int argc, char *argv[])
@@ -271,37 +221,7 @@ reset:
 		goto err5;
 	}
 
-	/* Register user-callbacks */
-	/* Callback to receive the Track2 / Track2 equivalent data as soon as
-	 * available.
-	 */
-	rc = l2FeigHAL_register_SendTrack2DataCallback(SendTrack2DataImplFeig);
-	if (rc != L2TRUE) {
-		printf("Register SendTrack2DataCallback failed\n");
-		goto err5;
-	}
-
-	/* Callback to receive the Outcome data as soon as available.
-	 */
-	rc = l2FeigHAL_register_SendL2OutcomeCallback(SendL2UIOutcomeImplFeig);
-	if (rc != L2TRUE) {
-		printf("Register SendL2OutcomeCallback failed\n");
-		goto err5;
-	}
-
-	/* APDU Trace Callback -> only needed for debug purpose */
-	rc = l2FeigHAL_register_CardTransmitCallback(CardTransmitImplFeig);
-	if (rc != L2TRUE) {
-		printf("Register SendL2OutcomeCallback failed\n");
-		goto err5;
-	}
-	/* save contactless interface file descriptor for access in callback */
-	gfeclr_fd = fd;
-
-	/* UIRequest Callback */
-	rc = l2FeigHAL_register_UIRequestCallback(UIRequestCallbackImplFeig);
-	if (rc != L2TRUE) {
-		printf("Register UIRequestCallbackImplFeig failed\n");
+	if (SetEmvCallbacks(fd)){
 		goto err5;
 	}
 

@@ -25,6 +25,9 @@ int CardTransmitImplFeig(void *pl2, enum SSL2CommandTypes type,
 void UIRequestCallbackImplFeig(UIRequest *UIRequestData);
 void PrintEMVCoL2Versions(void);
 
+//Called From External
+int SetEmvCallbacks(int fd);
+
 
 
 #endif /* EMVPAYMENTAPP_H_ */

@@ -107,7 +107,9 @@ int check_2pay_sys(unsigned char *rsp, int lr)
 	int prio_len;
 	unsigned char *d;
 
-	fci_issuer_discret_data = asn1Find(rsp, "\x6F\xA5\xBF\x0C", 3);
+	fci_issuer_discret_data = asn1
+
+			Find(rsp, "\x6F\xA5\xBF\x0C", 3);
 	if (fci_issuer_discret_data == NULL)
 		return -1;
 

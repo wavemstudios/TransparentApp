@@ -27,6 +27,7 @@ void PrintEMVCoL2Versions(void);
 
 //Called From External
 int SetEmvCallbacks(int fd);
+int SetEmvL2Layers(int fd, CK_SESSION_HANDLE_PTR phSession);
 
 
 

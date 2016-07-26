@@ -140,7 +140,6 @@ int main(int argc, char *argv[])
 	int i = 0;
 	bool isEMV = false;
 	/************************/
-	l2bool result = L2FALSE;
 	UIRequest onRequestOutcome;
 	UIRequest onRestartOutcome;
 	int samSlot = 1;
@@ -168,6 +167,7 @@ int main(int argc, char *argv[])
 
 	//******************
 
+	l2bool result = L2FALSE;
 	L2ExternalTransactionParameters tp;
 	CK_SESSION_HANDLE hSession = CK_INVALID_HANDLE;
 
@@ -205,20 +205,12 @@ reset:
 		goto err3;
 	}
 
-	/* Init EMVCo L2 manager layer */
-	result = l2manager_Init();
-	if (result != L2TRUE) {
-		printf("l2manager_Init failed\n");
-		goto err4;
+	if (SetEmvCallbacks(fd)){
+			goto err5;
 	}
 
-	/* Init EMVCo L2 HAL layer */
-	rc = l2FeigHAL_Init(fd,
-			    &hSession,
-			    "config/");
-	if (rc < 0) {
-		printf("Init L2FeigHAL failed with error: %d\n", rc);
-		goto err5;
+	if (SetEmvL2Layers(fd,&hSession)){
+			goto err5;
 	}
 
 	if (SetEmvCallbacks(fd)){

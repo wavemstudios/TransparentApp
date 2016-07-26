@@ -633,4 +633,26 @@ int SetEmvCallbacks(int fd)
 	return 0;
 }
 
+int SetEmvL2Layers(int fd, CK_SESSION_HANDLE_PTR phSession)
+{
+	l2bool result = L2FALSE;
+	int rc;
+	/* Init EMVCo L2 manager layer */
+	result = l2manager_Init();
+	if (result != L2TRUE) {
+		printf("l2manager_Init failed\n");
+		return 1;
+	}
+
+	/* Init EMVCo L2 HAL layer */
+	rc = l2FeigHAL_Init(fd,
+			    phSession,
+			    "config/");
+	if (rc < 0) {
+		printf("Init L2FeigHAL failed with error: %d\n", rc);
+		return 1;
+	}
+
+	return 0;
+}
 

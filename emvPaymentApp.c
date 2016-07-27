@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include <emv-l2/l2FeigHAL.h>
 #include <emv-l2/l2manager.h>
 #include <emv-l2/l2base.h>
@@ -19,15 +20,66 @@
 #include <emv-l2/l2discover.h>
 #include <feig/feclr.h>
 #include "asn1.h"
+#include "tlv.h"
+#include "emvTagList.h"
+#include "sslCall.h"
 
 #include "macros.h"
 
 static L2Outcome gL2Outcome;
 static int gfeclr_fd = -1;
+pthread_t inc_x_thread;
+bool threadRunning = false;
 
 UIRequest onRequestOutcome;
 UIRequest onRestartOutcome;
 L2ExternalTransactionParameters tp;
+
+//Thread for sending data online
+void *thread_doSslCall(void *body){
+
+	printf("\n\n\nthread_doSslCall here...\n");
+
+	doSslCall((char *)body);
+
+	free(body);
+
+	printf("\n\n\nthread_doSslCall here2...\n");
+
+	return NULL;
+}
+
+void ClearTransactionData()
+{
+	/* Init EMVCo L2 outcome structure */
+	memset(&gL2Outcome, 0, sizeof(L2Outcome));
+
+	/* Init EMVCo L2 transaction parameters */
+	memset(&tp, 0, sizeof(L2ExternalTransactionParameters));
+	memset(&onRequestOutcome, 0, sizeof(UIRequest));
+	memset(&onRestartOutcome, 0, sizeof(UIRequest));
+}
+
+void SetTransactionData()
+{
+	/* Init EMVCo L2 transaction parameters */
+	memset(&tp, 0, sizeof(L2ExternalTransactionParameters));
+	memcpy(tp.m_9F02_AmountAuthorised, "\x06\x00\x00\x00\x00\x07\x77", 7);
+	memcpy(tp.m_9F03_AmountOther, "\x06\x00\x00\x00\x00\x00\x00", 7);
+	memcpy(tp.m_9C_TransactionType, "\x01\x00", 2);
+	/* Transaction currency code EURO = 978 */
+	/* Transaction currency code USD = 840 */
+	/* Transaction currency code GBP = 826 */
+	memcpy(tp.m_5F2A_TransactionCurrencyCode, "\x02\x08\x26", 3);
+}
+
+void WaitThreadFinnish(){
+	if (threadRunning){
+		//wait for thread to finish
+		pthread_join(inc_x_thread,NULL);
+		threadRunning = false;
+	}
+}
 
 int check_2pay_sys(unsigned char *rsp, int lr)
 {
@@ -706,6 +758,7 @@ void DoEmvTransaction(){
 	char pToken[32] = {0};
 	l2bool result = L2FALSE;
 	int rcTransaction = 0;
+	int rcResponse = 0;
 	int i = 0;
 	//int rcResponse = 0;
 
@@ -833,8 +886,7 @@ void DoEmvTransaction(){
 			case EMV_ONLINE_ACCEPT:
 				printf("%s returns with EMV_ONLINE_ACCEPT\n",
 					   "l2manager_ProcessOnlineResponse()");
-				tag = 1;
-				emvSuccessVisualization(&tag, &new_tag);
+				emvSuccessVisualization(1, 1);
 				disable_bar();
 				enable_running_led();
 				break;
@@ -850,7 +902,7 @@ void DoEmvTransaction(){
 			default:
 				printf("%s returns with undefined code (%d)\n",
 					   "\nl2manager_ProcessOnlineResponse()",
-					   rc);
+					   rcTransaction);
 				/* EMVCo alert tone.
 				 * Buzzer Beep @ 750Hz for 200ms
 				 * [On -> Off -> On]
@@ -866,8 +918,7 @@ void DoEmvTransaction(){
 
 				if (threadRunning){
 				//wait for thread to finish
-				pthread_join(inc_x_thread,NULL);
-				threadRunning = false;
+					WaitThreadFinnish();
 				}
 
 
@@ -883,8 +934,7 @@ void DoEmvTransaction(){
 					threadRunning = true;
 				}
 
-				tag=1;
-				emvSuccessVisualization(&tag, &new_tag);
+				emvSuccessVisualization(1, 1);
 				disable_bar();
 				enable_running_led();
 				ClearTransactionData();
@@ -920,28 +970,4 @@ void DoEmvTransaction(){
 
 }
 
-
-void ClearTransactionData()
-{
-	/* Init EMVCo L2 outcome structure */
-		memset(&gL2Outcome, 0, sizeof(L2Outcome));
-
-		/* Init EMVCo L2 transaction parameters */
-		memset(tp, 0, sizeof(L2ExternalTransactionParameters));
-		memset(onRequestOutcome, 0, sizeof(UIRequest));
-		memset(onRestartOutcome, 0, sizeof(UIRequest));
-}
-
-void SetTransactionData()
-{
-		/* Init EMVCo L2 transaction parameters */
-		memset(tp, 0, sizeof(L2ExternalTransactionParameters));
-		memcpy(tp->m_9F02_AmountAuthorised, "\x06\x00\x00\x00\x00\x07\x77", 7);
-		memcpy(tp->m_9F03_AmountOther, "\x06\x00\x00\x00\x00\x00\x00", 7);
-		memcpy(tp->m_9C_TransactionType, "\x01\x00", 2);
-		/* Transaction currency code EURO = 978 */
-		/* Transaction currency code USD = 840 */
-		/* Transaction currency code GBP = 826 */
-		memcpy(tp->m_5F2A_TransactionCurrencyCode, "\x02\x08\x26", 3);
-}
 

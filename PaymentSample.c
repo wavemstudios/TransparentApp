@@ -46,10 +46,6 @@
 
 #include "macros.h"
 
-#include "tlv.h"
-#include "emvTagList.h"
-#include "sslCall.h"
-
 //****Code separation START
 
 #include "ledBuzzerController.h"
@@ -65,20 +61,6 @@
 #define EMV_ONLINE_SUCCESS	1    /* !< Force Valid Online Response */
 
 #define FECLR_DEVICE		"/dev/feclr0" /* Card reader */
-
-//Thread for sending data online
-void *thread_doSslCall(void *body){
-
-	printf("\n\n\nthread_doSslCall here...\n");
-
-	doSslCall((char *)body);
-
-	free(body);
-
-	printf("\n\n\nthread_doSslCall here2...\n");
-
-	return NULL;
-}
 
 int verify_icc_response(unsigned char *rsp, int lr, unsigned short sw)
 {
@@ -141,10 +123,6 @@ int main(int argc, char *argv[])
 	bool isEMV = false;
 
 	//****** Steve Added
-
-
-	pthread_t inc_x_thread;
-	bool threadRunning = false;
 
 	unsigned char cmd_buffer[261];
 	unsigned char rsp_buffer[258];
@@ -631,10 +609,7 @@ err1:
 //		doSslCall(outputBuffer);
 //	}
 
-	if (threadRunning){
-		//wait for thread to finish
-		pthread_join(inc_x_thread,NULL);
-	}
+	WaitThreadFinnish();
 
 
 	return rc;

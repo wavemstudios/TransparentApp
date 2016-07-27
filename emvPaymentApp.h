@@ -31,5 +31,6 @@ int IsEMVCard(int fd, uint64_t *pStatus);
 void DoEmvTransaction();
 void ClearTransactionData();
 void SetTransactionData();
+void WaitThreadFinnish();
 
 #endif /* EMVPAYMENTAPP_H_ */

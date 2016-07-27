@@ -24,7 +24,7 @@ void emvAlertTone(void);
 
 void startup_visualization(void);
 
-void emvSuccessVisualization(int *tag, int *new_tag);
+void emvSuccessVisualization();
 
 void visualization_mifare_classic(int *tag, int *new_tag);
 
@@ -34,7 +34,7 @@ void visualization_mifare_ultralight(int *tag, int *new_tag);
 
 void visualization_mifare_desfire(int *tag, int *new_tag);
 
-void visualization_girogo(int *tag, int *new_tag);
+void visualization_girogo();
 
 void visualization_cipurse(int *tag, int *new_tag);
 

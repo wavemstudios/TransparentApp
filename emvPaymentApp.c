@@ -738,7 +738,7 @@ int IsEMVCard(int fd,uint64_t *pStatus) {
 			} else if (rc == 5) {
 				/* GIROGO Card detected */
 				printf("GIROGO Card detected\n");
-				visualization_girogo(1,1);
+				visualization_girogo();
 				return 0;
 			}
 		}
@@ -747,8 +747,6 @@ int IsEMVCard(int fd,uint64_t *pStatus) {
 }
 
 void DoEmvTransaction(){
-	UIRequest onRequestOutcome;
-	UIRequest onRestartOutcome;
 	unsigned char transaction_data[4096];
 	unsigned int transaction_data_len = 0;
 	unsigned char custom_data[1024];
@@ -760,7 +758,7 @@ void DoEmvTransaction(){
 	int rcTransaction = 0;
 	int rcResponse = 0;
 	int i = 0;
-	//int rcResponse = 0;
+
 
 	/* Perform EMVCo L2 transaction */
 	rcTransaction = l2manager_PerformTransaction(&tp,
@@ -770,6 +768,7 @@ void DoEmvTransaction(){
 					  pToken);
 	/* Evaluate return value */
 	printf("\nl2manager_PerformTransaction() returns with %d\n\n", rcTransaction);
+
 	switch (rcTransaction) {
 	case EMV_OFFLINE_ACCEPT:
 	case EMV_GO_ONLINE:
@@ -779,6 +778,7 @@ void DoEmvTransaction(){
 		if (onRestartOutcome.m_bpresent)
 			printf("onRestartOutcome.m_ucmsgid:  %d\n",
 						   (int)onRestartOutcome.m_ucmsgid);
+
 		/* Get transaction data.
 		 * Please see description of
 		 * rdol_<kernel_id>_emv.txt or rdol_<kernel_id>_ms.txt.
@@ -792,8 +792,7 @@ void DoEmvTransaction(){
 				printf("%02X", transaction_data[i]);
 			printf("\n\n");
 
-//***************** STEVE ADDED
-// create output format for CULR call to Creditcall
+			// Output format for CULR call to Creditcall
 
 			//unsigned short size = sizeof(transaction_data)/sizeof(transaction_data[0]);
 
@@ -829,7 +828,6 @@ void DoEmvTransaction(){
 
 			printf("%s",outputBuffer);
 
-//***************** STEVE ADDED END
 
 		}
 
@@ -847,9 +845,7 @@ void DoEmvTransaction(){
 		}
 
 		/** If the return value is EMV_GO_ONLINE you must call the
-	root
-	cvend
-		 * function l2manager_ProcessOnlineResponse().
+		* function l2manager_ProcessOnlineResponse().
 		**/
 		if (rcTransaction == EMV_GO_ONLINE) {
 			/** ATTENTION
@@ -922,6 +918,8 @@ void DoEmvTransaction(){
 				}
 
 
+
+
 				//Create thread for sending data
 				int err;
 				err = pthread_create(&inc_x_thread,NULL,&thread_doSslCall,(void *)outputBuffer);
@@ -934,7 +932,8 @@ void DoEmvTransaction(){
 					threadRunning = true;
 				}
 
-				emvSuccessVisualization(1, 1);
+				emvSuccessVisualization();
+
 				disable_bar();
 				enable_running_led();
 				ClearTransactionData();

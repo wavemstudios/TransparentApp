@@ -611,6 +611,5 @@ err1:
 
 	WaitThreadFinnish();
 
-
 	return rc;
 }

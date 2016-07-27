@@ -77,10 +77,8 @@ void startup_visualization(void)
 	buzzer_beep(987, 300);
 }
 
-void emvSuccessVisualization(int *tag, int *new_tag)
+void emvSuccessVisualization()
 {
-	if ((*tag) && (*new_tag)) {
-
 		leds_off(LEDS_GREEN1 | LEDS_GREEN2 | LEDS_GREEN3 |
 			 LEDS_YELLOW | LEDS_RED);
 		leds_on(LEDS_GREEN1);
@@ -90,9 +88,6 @@ void emvSuccessVisualization(int *tag, int *new_tag)
 		leds_on(LEDS_GREEN3);
 		emvSuccessTone();
 		usleep(300000);
-		*new_tag = 0;
-		*tag = 0;
-	}
 }
 
 void visualization_mifare_classic(int *tag, int *new_tag)
@@ -159,19 +154,15 @@ void visualization_mifare_desfire(int *tag, int *new_tag)
 	}
 }
 
-void visualization_girogo(int *tag, int *new_tag)
+void visualization_girogo()
 {
-	if ((*tag) && (*new_tag)) {
-		buzzer_on(1500);
-		leds_off(LEDS_GREEN1 | LEDS_GREEN2 | LEDS_GREEN3 |
-			 LEDS_YELLOW | LEDS_RED);
-		usleep(100000);
-		leds_on(LEDS_GREEN2);
-		usleep(100000);
-		buzzer_off();
-		*new_tag = 0;
-		*tag = 0;
-	}
+	buzzer_on(1500);
+	leds_off(LEDS_GREEN1 | LEDS_GREEN2 | LEDS_GREEN3 |
+		 LEDS_YELLOW | LEDS_RED);
+	usleep(100000);
+	leds_on(LEDS_GREEN2);
+	usleep(100000);
+	buzzer_off();
 }
 
 void visualization_cipurse(int *tag, int *new_tag)

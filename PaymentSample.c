@@ -137,21 +137,12 @@ int main(int argc, char *argv[])
 
 	int fd = 0;
 	int rc = 0;
-	int i = 0;
+
 	bool isEMV = false;
-	/************************/
-	UIRequest onRequestOutcome;
-	UIRequest onRestartOutcome;
-	int samSlot = 1;
-	char pToken[32] = {0};
-	unsigned char transaction_data[4096];
-	unsigned int transaction_data_len = 0;
-	unsigned char custom_data[1024];
-	unsigned int custom_data_len = 0;
+
 	//****** Steve Added
-	char *outputBuffer;
-	int rcTransaction = 0;
-	int rcResponse = 0;
+
+
 	pthread_t inc_x_thread;
 	bool threadRunning = false;
 
@@ -159,7 +150,6 @@ int main(int argc, char *argv[])
 	unsigned char rsp_buffer[258];
 	size_t rx_frame_size;
 	uint8_t rx_last_bits;
-	char *SELECT_2PAY_SYS = "\x00\xA4\x04\x00\x0E\x32\x50\x41\x59\x2E\x53\x59\x53\x2E\x44\x44\x46\x30\x31\x00";
 	char *SELECT_EF_ID_INFO = "\x00\xA4\x00\x00\x02\x2F\xF7";
 	char *SELECT_EF_ACCESS = "\x00\xA4\x02\x0C\x02\x01\x1C";
 	int new_tag = 0, tag = 0;
@@ -168,7 +158,6 @@ int main(int argc, char *argv[])
 	//******************
 
 	l2bool result = L2FALSE;
-	L2ExternalTransactionParameters tp;
 	CK_SESSION_HANDLE hSession = CK_INVALID_HANDLE;
 
 	printf("Payment application version %s started\n\n", PAYMENT_APP_VERSION);
@@ -213,11 +202,9 @@ reset:
 			goto err5;
 	}
 
-	if (SetEmvCallbacks(fd)){
-		goto err5;
-	}
-
-	ResetTransactionData(&tp,&onRequestOutcome,&onRestartOutcome);
+	//EMV SET START TRANSACTION
+	ClearTransactionData();
+	SetTransactionData();
 
 start:
 
@@ -275,8 +262,6 @@ start:
 //			}
 			continue;
 		}
-
-		//TODO Detect all cards
 
 		/* Evaluate transponder data */
 		/** At this point you could evaluate the card data (tech and tech_data).
@@ -424,13 +409,8 @@ start:
 
 //*********TEST IF EMV CARD
 
-		/* Select 2PAY.SYS.DDF01 */
-		rc = feclr_transceive(fd, 0,
-				      SELECT_2PAY_SYS, 20, 0,
-				      rsp_buffer, sizeof(rsp_buffer),
-				      &rx_frame_size, &rx_last_bits,
-				      0,
-				      &status);
+		rc = IsEMVCard(fd,&status);
+
 		if (rc < 0) {
 			printf("Transceive failed with error: \"%s\"\n",
 								  strerror(rc));
@@ -443,44 +423,16 @@ start:
 			continue;
 		}
 
-		if (!verify_icc_response(rsp_buffer, rx_frame_size, 0x9000)) {
-			if (asn1Validate(rsp_buffer, rx_frame_size - 2) == 0) {
-				rc = check_2pay_sys(rsp_buffer, rx_frame_size);
-				printf(" check_2pay_sys rc value = %d\n",rc);
-				if (rc == 1) {
-					/* MASTER Card detected */
-					printf(" MASTER Card detected\n");
-					tag = 1;
-					isEMV = true;
-				} else if (rc == 2) {
-					/* VISA Card detected */
-					printf("VISA Card detected\n");
-					tag = 1;
-					isEMV = true;
-				} else if (rc == 3) {
-					/* AMEX Card detected */
-					printf("AMEX Card detected\n");
-					tag = 1;
-					isEMV = true;
-				} else if (rc == 4) {
-					/* DISCOVER Card detected */
-					printf("DISCOVER Card detected\n");
-					tag = 1;
-					isEMV = true;
-				} else if (rc == 5) {
-					/* GIROGO Card detected */
-					printf("GIROGO Card detected\n");
-					tag = 1;
-					visualization_girogo(&tag, &new_tag);
-					tag = 1;
-					continue;
-				}
-			}
+		if (rc == 1) {
+			tag = 1;
+			isEMV = true;
+		} else {
+			isEMV = false;
 		}
 
 //*********END TEST EMV CARD
 
-//********* Do this if NOT EMV
+//********* Test for other card types if NOT EMV
 
 		if (!isEMV){
 			/* Select EF.ID_INFO of CIPURSE */
@@ -498,14 +450,14 @@ start:
 			}
 
 			if (status != FECLR_STS_OK) {
-				/* printf("Transceive status: 0x%08llX\n", status); */
+				printf("Transceive status: 0x%08llX\n", status);
 				continue;
 			}
 
 			if (!verify_icc_response(rsp_buffer, rx_frame_size, 0x9000)) {
 				/* ISO14443-4 detected */
 				if (new_tag) {
-					printf("cipurse.bmp\n");
+					printf("ISO14443-4 cipurse detected\n");
 				}
 				tag = 1;
 				visualization_cipurse(&tag, &new_tag);
@@ -527,7 +479,7 @@ start:
 			}
 
 			if (status != FECLR_STS_OK) {
-				/* printf("Transceive status: 0x%08llX\n", status); */
+				 printf("Transceive status: 0x%08llX\n", status);
 				continue;
 			}
 
@@ -598,214 +550,7 @@ start:
 		}
 
 		//If we are here we must have a valid EMV card
-
-		/* Perform EMVCo L2 transaction */
-		rcTransaction = l2manager_PerformTransaction(&tp,
-						  &onRequestOutcome,
-						  &onRestartOutcome,
-						  samSlot,
-						  pToken);
-		/* Evaluate return value */
-		printf("\nl2manager_PerformTransaction() returns with %d\n\n", rc);
-		switch (rcTransaction) {
-		case EMV_OFFLINE_ACCEPT:
-		case EMV_GO_ONLINE:
-			if (onRequestOutcome.m_bpresent)
-				printf("onRequestOutcome.m_ucmsgid:  %d\n",
-							   (int)onRequestOutcome.m_ucmsgid);
-			if (onRestartOutcome.m_bpresent)
-				printf("onRestartOutcome.m_ucmsgid:  %d\n",
-							   (int)onRestartOutcome.m_ucmsgid);
-			/* Get transaction data.
-			 * Please see description of
-			 * rdol_<kernel_id>_emv.txt or rdol_<kernel_id>_ms.txt.
-			 */
-			result = l2manager_GetTransactionData(transaction_data,
-								  sizeof(transaction_data),
-								  &transaction_data_len);
-			if (result == L2TRUE) {
-				printf("TRANSACTION DATA:\n");
-				for (i = 0; i < transaction_data_len; i++)
-					printf("%02X", transaction_data[i]);
-				printf("\n\n");
-
-	//***************** STEVE ADDED
-	// create output format for CULR call to Creditcall
-
-				//unsigned short size = sizeof(transaction_data)/sizeof(transaction_data[0]);
-
-				tlvInfo_t *t=malloc(sizeof(tlvInfo_t)*transaction_data_len);
-				memset(t,0,transaction_data_len);
-				tlvInfo_init(t);
-
-				int tindex =0;
-
-				asprintf(&outputBuffer, "<Request type=\"CardEaseXML\" version=\"1.0.0\">\n",outputBuffer);
-				asprintf(&outputBuffer, "%s<TransactionDetails>\n",outputBuffer);
-				asprintf(&outputBuffer, "%s<LocalDateTime format=\"yyyyMMddHHmmss\">20160624105000</LocalDateTime>\n",outputBuffer);
-				if (rcTransaction == EMV_OFFLINE_ACCEPT) {
-					asprintf(&outputBuffer, "%s<MessageType>Offline</MessageType>\n",outputBuffer);
-				} else {
-					asprintf(&outputBuffer, "%s<MessageType>Auth</MessageType>\n",outputBuffer);
-				}
-				asprintf(&outputBuffer, "%s<Amount>777</Amount>\n",outputBuffer);
-				asprintf(&outputBuffer, "%s<Reference>CARD_TOKEN_HASH</Reference>\n",outputBuffer);
-				asprintf(&outputBuffer, "%s</TransactionDetails>\n",outputBuffer);
-				asprintf(&outputBuffer, "%s<TerminalDetails>\n",outputBuffer);
-				asprintf(&outputBuffer, "%s<TerminalID>99962873</TerminalID>\n",outputBuffer);
-				asprintf(&outputBuffer, "%s<TransactionKey>3uZwVaSDzfU4xqHH</TransactionKey>\n",outputBuffer);
-				asprintf(&outputBuffer, "%s</TerminalDetails>\n",outputBuffer);
-				asprintf(&outputBuffer, "%s<CardDetails>\n",outputBuffer);
-				asprintf(&outputBuffer, "%s<ICC type=\"EMV\">\n",outputBuffer);
-				emvparse(transaction_data, transaction_data_len, t, &tindex, 0, &outputBuffer);
-				asprintf(&outputBuffer, "%s</ICC>\n",outputBuffer);
-				asprintf(&outputBuffer, "%s</CardDetails>\n",outputBuffer);
-				asprintf(&outputBuffer, "%s</Request>\n",outputBuffer);
-
-				free(t);
-
-				printf("%s",outputBuffer);
-
-	//***************** STEVE ADDED END
-
-			}
-
-			/* Get custom data.
-			 * Please see description of rdol_clear.txt.
-			 */
-			result = l2manager_GetCustomData(custom_data,
-							 sizeof(custom_data),
-							 &custom_data_len);
-			if (result == L2TRUE) {
-				printf("RDOL:\n");
-				for (i = 0; i < custom_data_len; i++)
-					printf("%02X", custom_data[i]);
-				printf("\n\n");
-			}
-
-			/** If the return value is EMV_GO_ONLINE you must call the
-		root
-		cvend
-			 * function l2manager_ProcessOnlineResponse().
-			**/
-			if (rcTransaction == EMV_GO_ONLINE) {
-				/** ATTENTION
-				 * It is absolutely necessary to call the function
-				 * l2manager_ProcessOnlineResponse() if the code
-				 * EMV_GO_ONLINE is returned from function
-				 * l2manager_PerformTransaction() !
-				 * If you want to abort the transaction, or the backend
-				 * is not reachable or something else, you should set
-				 * the ucOnlineRespData and OnlineRespDataLen to zero.
-				 * In such a case the return code will be
-				 * EMV_ONLINE_DECLINE.
-				**/
-
-				//NEED to get return buffer
-				//doSslCall(outputBuffer);
-
-				unsigned char OnlineRespData[1024] = {0};
-				unsigned int OnlineRespDataLen = 0;
-	#ifdef EMV_ONLINE_SUCCESS
-				/* Successfull Online Verification = 0x30 0x30 */
-				OnlineRespDataLen = 16;
-				memcpy(OnlineRespData,
-					   "\x8A\x02\x30\x30\x91\x0A\x60\x6D\x6C\x6C\x37\xD4\xAC\x51\x30\x30",
-					   OnlineRespDataLen);
-	#endif
-				memset(&onRequestOutcome, 0, sizeof(UIRequest));
-				memset(&onRestartOutcome, 0, sizeof(UIRequest));
-				rcResponse = l2manager_ProcessOnlineResponse(OnlineRespData,
-									 OnlineRespDataLen,
-									 &onRequestOutcome,
-									 &onRestartOutcome);
-				switch (rcResponse) {
-				case EMV_ONLINE_ACCEPT:
-					printf("%s returns with EMV_ONLINE_ACCEPT\n",
-						   "l2manager_ProcessOnlineResponse()");
-					tag = 1;
-					emvSuccessVisualization(&tag, &new_tag);
-					disable_bar();
-					enable_running_led();
-					break;
-				case EMV_ONLINE_DECLINE:
-					printf("%s returns with EMV_ONLINE_DECLINE\n",
-						 "\nl2manager_ProcessOnlineResponse()");
-					/* EMVCo alert tone.
-					 * Buzzer Beep @ 750Hz for 200ms
-					 * [On -> Off -> On]
-					 */
-					emvAlertTone();
-					break;
-				default:
-					printf("%s returns with undefined code (%d)\n",
-						   "\nl2manager_ProcessOnlineResponse()",
-						   rc);
-					/* EMVCo alert tone.
-					 * Buzzer Beep @ 750Hz for 200ms
-					 * [On -> Off -> On]
-					 */
-					emvAlertTone();
-					break;
-				}
-			} else {
-				/* EMVCo success tone.
-				 * Buzzer Beep @ 1500Hz for 500ms
-				 */
-				if (rcTransaction == EMV_OFFLINE_ACCEPT) {
-
-					if (threadRunning){
-					//wait for thread to finish
-					pthread_join(inc_x_thread,NULL);
-					threadRunning = false;
-					}
-
-
-					//Create thread for sending data
-					int err;
-					err = pthread_create(&inc_x_thread,NULL,&thread_doSslCall,(void *)outputBuffer);
-
-					if (err != 0){
-						printf("\n\n\nCan't create thread...\n");
-						threadRunning = false;
-					} else {
-						printf("\n\n\nThread created...\n");
-						threadRunning = true;
-					}
-
-					tag=1;
-					emvSuccessVisualization(&tag, &new_tag);
-					disable_bar();
-					enable_running_led();
-					ResetTransactionData(&tp,&onRequestOutcome,&onRestartOutcome);
-				}
-			}
-			break;
-
-		case EMV_PPSE_NOT_SUPPORTED_BY_CARD:
-		case EMV_NO_MATCHING_APP:
-			/** At this point you could do some "closed loop" processing,
-			 * because the EMVCo kernel refuse the card.
-			 * Maybe it is no credit card, or the application is not
-			 * supported.
-			 * The card is still activated and remains in ISO 14443-4 state.
-			 */
-			/* EMVCo alert tone.
-			 * Buzzer Beep @ 750Hz for 200ms [On -> Off -> On]
-			 */
-			emvAlertTone();
-			break;
-		/* case ...:
-		 *	break;
-		 */
-		default:
-			/* The other codes should be treated as error. */
-			/* EMVCo alert tone.
-			 * Buzzer Beep @ 750Hz for 200ms [On -> Off -> On]
-			 */
-			emvAlertTone();
-			break;
-		}
+		DoEmvTransaction();
 
 		/* Check TransactionMode */
 		rc = l2manager_GetTransactionMode();

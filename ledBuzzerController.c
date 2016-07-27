@@ -174,8 +174,6 @@ void visualization_girogo(int *tag, int *new_tag)
 	}
 }
 
-
-
 void visualization_cipurse(int *tag, int *new_tag)
 {
 	if ((*tag) && (*new_tag)) {

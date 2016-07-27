@@ -10,7 +10,6 @@
 
 //Internal
 int check_2pay_sys(unsigned char *rsp, int lr);
-void ResetTransactionData(L2ExternalTransactionParameters *tp, UIRequest *onRequestOutcome, UIRequest *onRestartOutcome);
 void print_UIRequest(UIRequest *UIRequestData);
 
 //Callbacks
@@ -28,7 +27,9 @@ void PrintEMVCoL2Versions(void);
 //Called From External
 int SetEmvCallbacks(int fd);
 int SetEmvL2Layers(int fd, CK_SESSION_HANDLE_PTR phSession);
-
-
+int IsEMVCard(int fd, uint64_t *pStatus);
+void DoEmvTransaction();
+void ClearTransactionData();
+void SetTransactionData();
 
 #endif /* EMVPAYMENTAPP_H_ */

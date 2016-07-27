@@ -32,26 +32,14 @@
 #include <unistd.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <emv-l2/l2FeigHAL.h>
-#include <emv-l2/l2manager.h>
-#include <emv-l2/l2base.h>
-#include <emv-l2/l2errors.h>
-#include <emv-l2/l2entrypoint.h>
-#include <emv-l2/l2expresspay.h>
-#include <emv-l2/l2paywave.h>
-#include <emv-l2/l2paypass.h>
-#include <emv-l2/l2discover.h>
+
 #include <feig/feclr.h>
 #include <feig/fememcard.h>
 
 #include "macros.h"
 
-//****Code separation START
-
 #include "ledBuzzerController.h"
 #include "emvPaymentApp.h"
-
-//****Code separation END
 
 #define WAIT_FOR_CARD_INSERTION_TIMEOUT	200000LL /* 2 seconds in us*/
 #define WAIT_FOR_CARD_REMOVAL_TIMEOUT	30000000LL /* 30 seconds in us*/
@@ -135,7 +123,6 @@ int main(int argc, char *argv[])
 
 	//******************
 
-	l2bool result = L2FALSE;
 	CK_SESSION_HANDLE hSession = CK_INVALID_HANDLE;
 
 	printf("Payment application version %s started\n\n", PAYMENT_APP_VERSION);
@@ -530,29 +517,6 @@ start:
 		//If we are here we must have a valid EMV card
 		DoEmvTransaction();
 
-		/* Check TransactionMode */
-		rc = l2manager_GetTransactionMode();
-		switch (rc) {
-		case 1:
-			printf("Transaction mode = Magstripe\n");
-			break;
-		case 2:
-			printf("Transaction mode = Magstripe [CVN_17]\n");
-			break;
-		case 3:
-			printf("Transaction mode = EMV\n");
-			break;
-		default:
-			printf("Transaction mode = (%d) - UNKNOWN\n", rc);
-			break;
-		}
-
-		/* Needed for Mastercard processing */
-		/* This function is used to clear TORN for paypass transactions */
-		result = l2manager_ClearTorn();
-		if (result != L2TRUE)
-			printf("Error in function l2manager_ClearTorn()\n");
-
 		/* Wait x seconds for RFID card to be removed from the terminal. */
 		printf("Please remove card...\n");
 		rc = feclr_wait_for_card_removal(fd,
@@ -609,7 +573,7 @@ err1:
 //		doSslCall(outputBuffer);
 //	}
 
-	WaitThreadFinnish();
+	WaitEmvThreadFinnish();
 
 	return rc;
 }

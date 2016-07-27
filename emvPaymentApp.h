@@ -7,6 +7,7 @@
 
 #ifndef EMVPAYMENTAPP_H_
 #define EMVPAYMENTAPP_H_
+#include <emv-l2/l2base.h>
 
 //Internal
 int check_2pay_sys(unsigned char *rsp, int lr);
@@ -31,6 +32,6 @@ int IsEMVCard(int fd, uint64_t *pStatus);
 void DoEmvTransaction();
 void ClearTransactionData();
 void SetTransactionData();
-void WaitThreadFinnish();
+void WaitEmvThreadFinnish();
 
 #endif /* EMVPAYMENTAPP_H_ */

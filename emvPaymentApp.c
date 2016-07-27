@@ -73,7 +73,7 @@ void SetTransactionData()
 	memcpy(tp.m_5F2A_TransactionCurrencyCode, "\x02\x08\x26", 3);
 }
 
-void WaitThreadFinnish(){
+void WaitEmvThreadFinnish(){
 	if (threadRunning){
 		//wait for thread to finish
 		pthread_join(inc_x_thread,NULL);
@@ -757,6 +757,7 @@ void DoEmvTransaction(){
 	l2bool result = L2FALSE;
 	int rcTransaction = 0;
 	int rcResponse = 0;
+	int rc = 0;
 	int i = 0;
 
 
@@ -914,11 +915,8 @@ void DoEmvTransaction(){
 
 				if (threadRunning){
 				//wait for thread to finish
-					WaitThreadFinnish();
+					WaitEmvThreadFinnish();
 				}
-
-
-
 
 				//Create thread for sending data
 				int err;
@@ -966,6 +964,30 @@ void DoEmvTransaction(){
 		emvAlertTone();
 		break;
 	}
+
+
+	/* Check TransactionMode */
+	rc = l2manager_GetTransactionMode();
+	switch (rc) {
+	case 1:
+		printf("Transaction mode = Magstripe\n");
+		break;
+	case 2:
+		printf("Transaction mode = Magstripe [CVN_17]\n");
+		break;
+	case 3:
+		printf("Transaction mode = EMV\n");
+		break;
+	default:
+		printf("Transaction mode = (%d) - UNKNOWN\n", rc);
+		break;
+	}
+
+	/* Needed for Mastercard processing */
+	/* This function is used to clear TORN for paypass transactions */
+	result = l2manager_ClearTorn();
+	if (result != L2TRUE)
+		printf("Error in function l2manager_ClearTorn()\n");
 
 }
 

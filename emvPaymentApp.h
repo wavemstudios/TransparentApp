@@ -33,5 +33,6 @@ void DoEmvTransaction();
 void ClearTransactionData();
 void SetTransactionData();
 void WaitEmvThreadFinnish();
+void PrintEMVPaymentAppVersions();
 
 #endif /* EMVPAYMENTAPP_H_ */

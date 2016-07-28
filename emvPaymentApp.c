@@ -1,9 +1,19 @@
 /*
- * emvTransaction.c
+ * emvPaymentApp.c
  *
  *  Created on: 26 Jul 2016
  *      Author: steve
  */
+
+#define VERSION_MAJOR "1"
+#define VERSION_MINOR "0"
+#define VERSION_PATCH "0"
+
+#ifdef DEBUG
+#define BUILD_TYPE "DEBUG"
+#else
+#define BUILD_TYPE "RELEASE"
+#endif
 
 #include <stdio.h>
 #include <string.h>
@@ -26,6 +36,9 @@
 
 #include "macros.h"
 
+static char version[] = VERSION_MAJOR "." VERSION_MINOR "." VERSION_PATCH "." BUILD_TYPE;
+static char timestamp[] = __DATE__ " " __TIME__;
+
 static L2Outcome gL2Outcome;
 static int gfeclr_fd = -1;
 pthread_t inc_x_thread;
@@ -47,6 +60,11 @@ void *thread_doSslCall(void *body){
 	printf("\n\n\nthread_doSslCall here2...\n");
 
 	return NULL;
+}
+
+void PrintEMVPaymentAppVersions(){
+	printf("EMV Payment Application Version : %s\n",version);
+	printf("EMV Payment Application Timestamp : %s\n",timestamp);
 }
 
 void ClearTransactionData()

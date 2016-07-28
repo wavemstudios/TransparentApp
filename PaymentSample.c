@@ -125,7 +125,10 @@ int main(int argc, char *argv[])
 
 	CK_SESSION_HANDLE hSession = CK_INVALID_HANDLE;
 
-	printf("Payment application version %s started\n\n", PAYMENT_APP_VERSION);
+	printf("Card reader version %s started\n\n", PAYMENT_APP_VERSION);
+
+	PrintEMVPaymentAppVersions();
+
 	/* Print EMVCo Kernel versions */
 	PrintEMVCoL2Versions();
 
@@ -470,7 +473,7 @@ start:
 				case FEMEMCARD_TAG_TYPE_MIFARE_DESFIRE:
 					/* mifare desfire detected */
 					if (new_tag) {
-						printf("mifare_desfire.bmp\n");
+						printf("mifare desfire detected\n");
 					}
 					tag = 1;
 					visualization_mifare_desfire(&tag, &new_tag);
@@ -479,7 +482,7 @@ start:
 				case FEMEMCARD_TAG_TYPE_MIFARE_PL_SL3:
 					/* mifare plus detected */
 					if (new_tag) {
-						printf("mifare_plus.bmp\n");
+						printf("mifare plus detected\n");
 					}
 					tag = 1;
 					visualization_mifare_plus(&tag, &new_tag);
@@ -488,7 +491,7 @@ start:
 				case FEMEMCARD_TAG_TYPE_MIFARE_EMULATION:
 					/* mifare classic detected */
 					if (new_tag) {
-						printf("mifare_classic emulation.bmp\n");
+						printf("mifare classic emulation detected\n");
 					}
 					tag = 1;
 					visualization_mifare_classic(&tag, &new_tag);

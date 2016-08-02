@@ -62,43 +62,6 @@ int verify_icc_response(unsigned char *rsp, int lr, unsigned short sw)
 	return sw_rsp == sw ? 0 : -1;
 }
 
-static int open_session_and_login(CK_SESSION_HANDLE_PTR phSession,
-							      CK_SLOT_ID slotID)
-{
-	CK_RV rv = CKR_OK;
-
-	rv = C_Initialize(NULL_PTR);
-	if (CKR_OK != rv)
-		return EXIT_FAILURE;
-
-	rv = C_OpenSession(slotID,
-			   CKF_RW_SESSION | CKF_SERIAL_SESSION,
-			   NULL,
-			   NULL,
-			   phSession);
-	if (CKR_OK != rv) {
-		C_Finalize(NULL_PTR);
-		return EXIT_FAILURE;
-	}
-
-	rv = C_Login(*phSession, CKU_USER, NULL_PTR, 0);
-	if (CKR_OK != rv) {
-		C_CloseSession(*phSession);
-		C_Finalize(NULL_PTR);
-		return EXIT_FAILURE;
-	}
-
-	return EXIT_SUCCESS;
-}
-
-static void logout_and_close_session(CK_SESSION_HANDLE_PTR phSession)
-{
-	C_Logout(*phSession);
-	C_CloseSession(*phSession);
-	C_Finalize(NULL_PTR);
-	*phSession = CK_INVALID_HANDLE;
-}
-
 int main(int argc, char *argv[])
 {
 	struct timeval firstResp;
@@ -123,8 +86,6 @@ int main(int argc, char *argv[])
 
 	//******************
 
-	CK_SESSION_HANDLE hSession = CK_INVALID_HANDLE;
-
 	printf("Card reader version %s started\n\n", PAYMENT_APP_VERSION);
 
 	PrintEMVPaymentAppVersions();
@@ -134,7 +95,7 @@ int main(int argc, char *argv[])
 
 reset:
 	/* Login to PKCS11 interface */
-	rc = open_session_and_login(&hSession, FEPKCS11_APP0_TOKEN_SLOT_ID);
+	rc = open_session_and_login();
 	if (rc != EXIT_SUCCESS)
 		return -1;
 
@@ -166,7 +127,7 @@ reset:
 			goto err5;
 	}
 
-	if (SetEmvL2Layers(fd,&hSession)){
+	if (SetEmvL2Layers(fd)){
 			goto err5;
 	}
 
@@ -569,7 +530,7 @@ err2:
 
 err1:
 	/* Release PKCS11 interface */
-	logout_and_close_session(&hSession);
+	logout_and_close_session();
 
 	//Send all offline accepted transactions to CC
 //	if (rcTransaction == EMV_OFFLINE_ACCEPT) {

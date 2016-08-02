@@ -27,12 +27,14 @@ void PrintEMVCoL2Versions(void);
 
 //Called From External
 int SetEmvCallbacks(int fd);
-int SetEmvL2Layers(int fd, CK_SESSION_HANDLE_PTR phSession);
+int SetEmvL2Layers(int fd);
 int IsEMVCard(int fd, uint64_t *pStatus);
 void DoEmvTransaction();
 void ClearTransactionData();
 void SetTransactionData();
 void WaitEmvThreadFinnish();
 void PrintEMVPaymentAppVersions();
+int open_session_and_login();
+void logout_and_close_session();
 
 #endif /* EMVPAYMENTAPP_H_ */

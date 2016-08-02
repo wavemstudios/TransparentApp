@@ -48,6 +48,8 @@ UIRequest onRequestOutcome;
 UIRequest onRestartOutcome;
 L2ExternalTransactionParameters tp;
 
+CK_SESSION_HANDLE hSession = CK_INVALID_HANDLE;
+
 //Thread for sending data online
 void *thread_doSslCall(void *body){
 
@@ -60,6 +62,42 @@ void *thread_doSslCall(void *body){
 	printf("\n\n\nthread_doSslCall here2...\n");
 
 	return NULL;
+}
+
+int open_session_and_login()
+{
+	CK_RV rv = CKR_OK;
+
+	rv = C_Initialize(NULL_PTR);
+	if (CKR_OK != rv)
+		return EXIT_FAILURE;
+
+	rv = C_OpenSession(FEPKCS11_APP0_TOKEN_SLOT_ID,
+			   CKF_RW_SESSION | CKF_SERIAL_SESSION,
+			   NULL,
+			   NULL,
+			   &hSession);
+	if (CKR_OK != rv) {
+		C_Finalize(NULL_PTR);
+		return EXIT_FAILURE;
+	}
+
+	rv = C_Login(hSession, CKU_USER, NULL_PTR, 0);
+	if (CKR_OK != rv) {
+		C_CloseSession(hSession);
+		C_Finalize(NULL_PTR);
+		return EXIT_FAILURE;
+	}
+
+	return EXIT_SUCCESS;
+}
+
+void logout_and_close_session()
+{
+	C_Logout(hSession);
+	C_CloseSession(hSession);
+	C_Finalize(NULL_PTR);
+	hSession = CK_INVALID_HANDLE;
 }
 
 void PrintEMVPaymentAppVersions(){
@@ -690,7 +728,7 @@ int SetEmvCallbacks(int fd)
 	return 0;
 }
 
-int SetEmvL2Layers(int fd, CK_SESSION_HANDLE_PTR phSession)
+int SetEmvL2Layers(int fd)
 {
 	l2bool result = L2FALSE;
 	int rc;
@@ -703,7 +741,7 @@ int SetEmvL2Layers(int fd, CK_SESSION_HANDLE_PTR phSession)
 
 	/* Init EMVCo L2 HAL layer */
 	rc = l2FeigHAL_Init(fd,
-			    phSession,
+			    &hSession,
 			    "config/");
 	if (rc < 0) {
 		printf("Init L2FeigHAL failed with error: %d\n", rc);

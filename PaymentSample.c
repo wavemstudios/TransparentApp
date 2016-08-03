@@ -123,11 +123,11 @@ reset:
 		goto err3;
 	}
 
-	if (SetEmvCallbacks(fd)){
+	if (SetEmvL2Layers(fd)){
 			goto err5;
 	}
 
-	if (SetEmvL2Layers(fd)){
+	if (SetEmvCallbacks(fd)){
 			goto err5;
 	}
 

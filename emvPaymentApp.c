@@ -691,34 +691,38 @@ int SetEmvCallbacks(int fd)
 	/* save contactless interface file descriptor for access in callback */
 	gfeclr_fd = fd;
 
+	printf("Register SendTrack2DataImplFeig\n");
 	/* Register user-callbacks */
 	/* Callback to receive the Track2 / Track2 equivalent data as soon as
 	 * available.
 	 */
 	rc = l2FeigHAL_register_SendTrack2DataCallback(SendTrack2DataImplFeig);
 	if (rc != L2TRUE) {
-		printf("Register SendTrack2DataCallback failed\n");
+		printf("Register SendTrack2DataImplFeig failed\n");
 		return 1;
 	}
 
+	printf("Register SendL2UIOutcomeImplFeig\n");
 	/* Callback to receive the Outcome data as soon as available.
 	 */
 	rc = l2FeigHAL_register_SendL2OutcomeCallback(SendL2UIOutcomeImplFeig);
 	if (rc != L2TRUE) {
-		printf("Register SendL2OutcomeCallback failed\n");
+		printf("Register SendL2UIOutcomeImplFeig failed\n");
 		return 1;
 	}
 
 #ifdef DEBUG
+	printf("Register CardTransmitImplFeig\n");
 	/* APDU Trace Callback -> only needed for debug purpose */
 	rc = l2FeigHAL_register_CardTransmitCallback(CardTransmitImplFeig);
 	if (rc != L2TRUE) {
-		printf("Register SendL2OutcomeCallback failed\n");
+		printf("Register CardTransmitImplFeig failed\n");
 		return 1;
 	}
 
 #endif
 
+	printf("Register UIRequestCallbackImplFeig\n");
 	/* UIRequest Callback */
 	rc = l2FeigHAL_register_UIRequestCallback(UIRequestCallbackImplFeig);
 	if (rc != L2TRUE) {

@@ -132,6 +132,7 @@ void SetTransactionData()
 void WaitEmvThreadFinnish(){
 	if (threadRunning){
 		//wait for thread to finish
+		printf("Wait for thread to finish\n");
 		pthread_join(inc_x_thread,NULL);
 		threadRunning = false;
 	}

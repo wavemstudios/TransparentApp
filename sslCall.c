@@ -68,19 +68,34 @@ int doSslCall(char *body)
     /* create the socket */
 
     int sockfd;
+
+    sockfd = socket(AF_INET, SOCK_STREAM, 0);
+
+    if (sockfd < 0){
+    	printf("ERROR opening socket\n");
+    	free(message);
+    	return -1;
+    }
+
     server = gethostbyname(host);
-    if (server == NULL) error("ERROR, no such host");
-        sockfd = socket(AF_INET, SOCK_STREAM, 0);
-        if (sockfd < 0) error("ERROR opening socket");
-        /* fill in the structure */
-        memset(&serv_addr,0,sizeof(serv_addr));
-        serv_addr.sin_family = AF_INET;
-        serv_addr.sin_port = htons(portno);
-        memcpy(&serv_addr.sin_addr.s_addr,server->h_addr,server->h_length);
-                /* connect the socket */
-        if (connect(sockfd,(struct sockaddr *)&serv_addr,sizeof(serv_addr)) < 0)
-            error("ERROR connecting");
-                /* send the request */
+     if (server == NULL){
+     	printf("ERROR, no such host\n");
+     	free(message);
+     	return -1;
+     }
+
+    /* fill in the structure */
+	memset(&serv_addr,0,sizeof(serv_addr));
+	serv_addr.sin_family = AF_INET;
+	serv_addr.sin_port = htons(portno);
+	memcpy(&serv_addr.sin_addr.s_addr,server->h_addr,server->h_length);
+			/* connect the socket */
+	if (connect(sockfd,(struct sockaddr *)&serv_addr,sizeof(serv_addr)) < 0){
+		printf("ERROR connecting\n");
+    	free(message);
+    	return -1;
+	}
+			/* send the request */
 
      // initialize OpenSSL - do this once and stash ssl_ctx in a global var
 	 SSL_load_error_strings ();
@@ -95,10 +110,13 @@ int doSslCall(char *body)
 
 	retval = SSL_write(SSLconn,message,total);
 	if (retval == 0){
-		error("ERROR writing message to SSL socket = 0");
+		printf("ERROR writing message to SSL socket = 0\n");
+		free(message);
+		return -1;
 	} else if (retval < 0){
-
-		error("ERROR writing message to SSL socket < 0");
+		printf("ERROR writing message to SSL socket < 0\n");
+		free(message);
+		return -1;
 	}
 
     /* receive the response */
@@ -110,13 +128,20 @@ int doSslCall(char *body)
     retval = SSL_read(SSLconn, response, 1024);
 
     if (retval == 0){
-   		error("ERROR reading message from SSL socket = 0");
+    	printf("ERROR reading message from SSL socket = 0\n");
+   		free(message);
+   		return -1;
    	} else if (retval < 0){
-   		error("ERROR reading message from SSL socket < 0");
+   		printf("ERROR reading message from SSL socket < 0\n");
+   		free(message);
+   		return -1;
    	}
 
-    if (received == total)
-        error("ERROR storing complete response from socket");
+    if (received == total){
+        error("ERROR storing complete response from socket\n");
+        free(message);
+        return -1;
+    }
 
     printf("%s", response);
 

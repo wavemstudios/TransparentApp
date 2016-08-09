@@ -41,6 +41,7 @@
 
 #include "ledBuzzerController.h"
 #include "emvPaymentApp.h"
+#include "dukpt.h"
 
 #define WAIT_FOR_CARD_INSERTION_TIMEOUT	200000LL /* 2 seconds in us*/
 #define WAIT_FOR_CARD_REMOVAL_TIMEOUT	30000000LL /* 30 seconds in us*/
@@ -86,6 +87,8 @@ int main(int argc, char *argv[])
 	uint16_t tag_typ = FEMEMCARD_TAG_TYPE_UNKNOWN;
 
 	//******************
+
+	runDukptTest();
 
 	printf("Card reader version %s started\n\n", PAYMENT_APP_VERSION);
 

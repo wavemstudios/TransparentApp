@@ -879,8 +879,14 @@ void DoEmvTransaction(){
 			asprintf(&outputBuffer, "%s<TerminalID>99962873</TerminalID>\n",outputBuffer);
 			asprintf(&outputBuffer, "%s<TransactionKey>3uZwVaSDzfU4xqHH</TransactionKey>\n",outputBuffer);
 			asprintf(&outputBuffer, "%s</TerminalDetails>\n",outputBuffer);
+			asprintf(&outputBuffer, "%s<ExtendedPropertyList>\n",outputBuffer);
+			asprintf(&outputBuffer, "%s<ExtendedProperty id=\"dukptksn\">FFFF9876543210E00002</ExtendedProperty>\n",outputBuffer);
+			asprintf(&outputBuffer, "%s<ExtendedProperty id=\"dukptiv\">0000000000000000</ExtendedProperty>\n",outputBuffer);
+			asprintf(&outputBuffer, "%s<ExtendedProperty id=\"dukptproduct\">CC01</ExtendedProperty>\n",outputBuffer);
+			asprintf(&outputBuffer, "%s</ExtendedPropertyList>\n",outputBuffer);
 			asprintf(&outputBuffer, "%s<CardDetails>\n",outputBuffer);
 			asprintf(&outputBuffer, "%s<ICC type=\"EMV\">\n",outputBuffer);
+			asprintf(&outputBuffer, "%s<ICCTag tagid=\"ENCRYPTEDCARDDETAILS\">0D398D1F173BF6AAD98B54263D734C1078483FDC2456C78FA8B94A5179CA43C2B30B294DA38B63E4</ICCTag>\n",outputBuffer);
 			emvparse(transaction_data, transaction_data_len, t, &tindex, 0, &outputBuffer);
 			asprintf(&outputBuffer, "%s</ICC>\n",outputBuffer);
 			asprintf(&outputBuffer, "%s</CardDetails>\n",outputBuffer);

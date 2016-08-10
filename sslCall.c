@@ -44,7 +44,7 @@ int doSslCall(char *body)
 	message_size+=strlen(method);                      	/* method         */
 	message_size+=strlen(path);         				/* path           */
 	message_size+=strlen(headers);                  	/* headers        */
-	message_size+=strlen("Content-length: %d\n")+15; 	/* content length */
+	message_size+=strlen("Content-length: %d\n")+30; 	/* content length */
 	message_size+=strlen("\n");                      	/* blank line     */
 	message_size+=strlen(body);                     	/* body           */
 

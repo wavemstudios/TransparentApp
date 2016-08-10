@@ -125,6 +125,7 @@ static unsigned char *get_key_serial_number(CK_SESSION_HANDLE hSession,
 
 	rv = C_GetAttributeValue(hSession, hIKey, ksn_template,
 						      ARRAY_SIZE(ksn_template));
+
 	assert(rv == CKR_OK);
 
 	return ksn;
@@ -139,9 +140,8 @@ static CK_OBJECT_HANDLE get_transaction_key(CK_SESSION_HANDLE hSession,
 		CKM_KEY_DERIVATION_DUKPT_TRANSACTION_KEY, NULL_PTR, 0
 	};
 	CK_BBOOL ckTrue = CK_TRUE;
-	CK_BBOOL ckFalse = CK_FALSE;
 	CK_ATTRIBUTE template[] = {
-		{ CKA_TOKEN, &ckFalse, sizeof(ckFalse) },
+		{ CKA_TOKEN, &ckTrue, sizeof(ckTrue) },
 		{ CKA_DERIVE, &ckTrue, sizeof(ckTrue) }
 	};
 
@@ -230,9 +230,20 @@ int runDukptTest(void)
 		goto done;
 	}
 
+	unsigned char key_serial_number[10] = {
+		0xFF, 0xFF, 0x98, 0x76, 0x54, 0x32, 0x10, 0xE0, 0x00, 0x11
+	};
+
 	printf("Example 1: Contact Magstripe\n");
 	printf("KSN       : %s\n", bin2hex(hex, get_key_serial_number(
 					   hSession, hIKey, ksn), sizeof(ksn)));
+
+	printf("KSN       : %s\n", bin2hex(hex, get_key_serial_number(
+					   hSession, hIKey, ksn), sizeof(ksn)));
+
+	printf("KSN       : %s\n", bin2hex(hex, get_key_serial_number(
+					   hSession, hIKey, ksn), sizeof(ksn)));
+
 	printf("Plaintext : %s\n", bin2hex(hex, track2, strlen(track2)));
 	len = sizeof(buffer);
 	dukpt_encrypt(hSession, hIKey, track2, strlen(track2), buffer, &len);
@@ -241,6 +252,13 @@ int runDukptTest(void)
 	printf("Example 2: Contactless Magstripe\n");
 	printf("KSN       : %s\n", bin2hex(hex, get_key_serial_number(
 					   hSession, hIKey, ksn), sizeof(ksn)));
+
+	printf("KSN       : %s\n", bin2hex(hex, get_key_serial_number(
+						   hSession, hIKey, ksn), sizeof(ksn)));
+
+	printf("KSN       : %s\n", bin2hex(hex, get_key_serial_number(
+					   hSession, hIKey, ksn), sizeof(ksn)));
+
 	printf("Plaintext : %s\n", bin2hex(hex, track2ctls,
 							   strlen(track2ctls)));
 	len = sizeof(buffer);
@@ -251,6 +269,13 @@ int runDukptTest(void)
 	printf("Example 3: ICC (Contact and Contactless)\n");
 	printf("KSN       : %s\n", bin2hex(hex, get_key_serial_number(
 					   hSession, hIKey, ksn), sizeof(ksn)));
+
+	printf("KSN       : %s\n", bin2hex(hex, get_key_serial_number(
+						   hSession, hIKey, ksn), sizeof(ksn)));
+
+	printf("KSN       : %s\n", bin2hex(hex, get_key_serial_number(
+					   hSession, hIKey, ksn), sizeof(ksn)));
+
 	printf("Plaintext : %s\n", bin2hex(hex, icc, sizeof(icc)));
 	len = sizeof(buffer);
 	dukpt_encrypt(hSession, hIKey, icc, sizeof(icc), buffer, &len);
@@ -261,6 +286,8 @@ done:
 
 	return EXIT_SUCCESS;
 }
+
+
 
 
 

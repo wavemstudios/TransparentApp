@@ -207,7 +207,6 @@ int runDukptTest(void)
 {
 	CK_SESSION_HANDLE hSession = CK_INVALID_HANDLE;
 	CK_OBJECT_HANDLE hIKey = CK_INVALID_HANDLE;
-	unsigned char ksn[10];
 	char label[] = "DUKPT_IKEY", hex[256];
 	uint16_t id = 0xCC01;
 	char track2[] = ";4111111111111111=151220100000?";
@@ -221,6 +220,9 @@ int runDukptTest(void)
 	unsigned char buffer[128];
 	size_t len = sizeof(buffer);
 
+	unsigned char ksn[10];
+
+
 	crypto_token_login(&hSession);
 
 	hIKey = get_dukpt_ikey(hSession, label, id);
@@ -229,10 +231,6 @@ int runDukptTest(void)
 								     label, id);
 		goto done;
 	}
-
-	unsigned char key_serial_number[10] = {
-		0xFF, 0xFF, 0x98, 0x76, 0x54, 0x32, 0x10, 0xE0, 0x00, 0x11
-	};
 
 	printf("Example 1: Contact Magstripe\n");
 	printf("KSN       : %s\n", bin2hex(hex, get_key_serial_number(
@@ -287,7 +285,47 @@ done:
 	return EXIT_SUCCESS;
 }
 
+int dukptEncrypt(CK_SESSION_HANDLE hSession, unsigned char *icc,int iccSize, unsigned char *hexKsn, unsigned char *hexBuffer)
+{
+
+	CK_OBJECT_HANDLE hIKey = CK_INVALID_HANDLE;
+	char label[] = "DUKPT_IKEY", hex[256];
+	uint16_t id = 0xCC01;
+
+	unsigned char buffer[128];
+	size_t len = sizeof(buffer);
+
+	//unsigned char hexBuffer[128];
+	size_t lenHex = sizeof(hexBuffer);
+
+	unsigned char ksn[10];
+
+	//unsigned char hexKsn[10];
+
+	hIKey = get_dukpt_ikey(hSession, label, id);
+	if (hIKey == CK_INVALID_HANDLE) {
+		printf("No DUKPT Initial Key found (label '%s', id %02hX).\n",
+								     label, id);
+		goto done;
+	}
+
+	printf("Example 3: ICC (Contact and Contactless)\n");
+
+	strcpy(hexKsn, bin2hex(hex, get_key_serial_number(
+			   hSession, hIKey, ksn), sizeof(ksn)));
+
+	printf("KSN       : %s\n", hexKsn);
+
+	printf("Plaintext : %s\n", bin2hex(hex, icc, iccSize));
 
 
+	dukpt_encrypt(hSession, hIKey, icc,iccSize, buffer, &len);
 
+	strcpy(hexBuffer, bin2hex(hex, buffer, len));
 
+	printf("CipherText: %s\n", hexBuffer);
+
+done:
+
+	return EXIT_SUCCESS;
+}

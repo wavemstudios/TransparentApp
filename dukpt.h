@@ -9,5 +9,6 @@
 #define DUKPT_H_
 
 int runDukptTest(void);
+int dukptEncrypt(CK_SESSION_HANDLE hSession, unsigned char *icc, int iccSize, unsigned char *hexKsn, unsigned char *hexBuffer);
 
 #endif /* DUKPT_H_ */

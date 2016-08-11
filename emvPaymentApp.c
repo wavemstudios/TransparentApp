@@ -36,6 +36,8 @@
 
 #include "macros.h"
 
+#include "dukpt.h"
+
 static char version[] = VERSION_MAJOR "." VERSION_MINOR "." VERSION_PATCH "." BUILD_TYPE;
 static char timestamp[] = __DATE__ " " __TIME__;
 
@@ -854,6 +856,28 @@ void DoEmvTransaction(){
 				printf("%02X", transaction_data[i]);
 			printf("\n\n");
 
+			//********** DO DUKPT Crypto
+
+
+			unsigned char icc[] = {
+					0x5A, 0x08, 0x54, 0x13, 0x33, 0x00, 0x90, 0x00, 0x02, 0x18, 0x5F, 0x24, 0x03, 0x17, 0x12, 0x31
+			};
+
+			unsigned char hexKsn[21];
+			unsigned char hexBuffer[128];
+
+			int i;
+			printf("ICC DATA PRE:\n");
+						for (i = 0; i < sizeof(icc); i++)
+							printf("%02X", icc[i]);
+						printf("\n\n");
+
+			dukptEncrypt(hSession, icc, sizeof(icc), hexKsn, hexBuffer);
+
+			printf("EMV - KSN       : %s\n", hexKsn);
+			printf("EMV - CipherText: %s\n", hexBuffer);
+
+
 			// Output format for CULR call to Creditcall
 
 			//unsigned short size = sizeof(transaction_data)/sizeof(transaction_data[0]);
@@ -874,19 +898,19 @@ void DoEmvTransaction(){
 			}
 			asprintf(&outputBuffer, "%s<Amount>777</Amount>\n",outputBuffer);
 			asprintf(&outputBuffer, "%s<Reference>CARD_TOKEN_HASH</Reference>\n",outputBuffer);
+			asprintf(&outputBuffer, "%s<ExtendedPropertyList>\n",outputBuffer);
+			asprintf(&outputBuffer, "%s<ExtendedProperty id=\"dukptksn\">FFFF9876543210E0000F</ExtendedProperty>\n",outputBuffer);
+			asprintf(&outputBuffer, "%s<ExtendedProperty id=\"dukptiv\">0000000000000000</ExtendedProperty>\n",outputBuffer);
+			asprintf(&outputBuffer, "%s<ExtendedProperty id=\"dukptproduct\">CC01</ExtendedProperty>\n",outputBuffer);
+			asprintf(&outputBuffer, "%s</ExtendedPropertyList>\n",outputBuffer);
 			asprintf(&outputBuffer, "%s</TransactionDetails>\n",outputBuffer);
 			asprintf(&outputBuffer, "%s<TerminalDetails>\n",outputBuffer);
 			asprintf(&outputBuffer, "%s<TerminalID>99962873</TerminalID>\n",outputBuffer);
 			asprintf(&outputBuffer, "%s<TransactionKey>3uZwVaSDzfU4xqHH</TransactionKey>\n",outputBuffer);
 			asprintf(&outputBuffer, "%s</TerminalDetails>\n",outputBuffer);
-			asprintf(&outputBuffer, "%s<ExtendedPropertyList>\n",outputBuffer);
-			asprintf(&outputBuffer, "%s<ExtendedProperty id=\"dukptksn\">FFFF9876543210E00002</ExtendedProperty>\n",outputBuffer);
-			asprintf(&outputBuffer, "%s<ExtendedProperty id=\"dukptiv\">0000000000000000</ExtendedProperty>\n",outputBuffer);
-			asprintf(&outputBuffer, "%s<ExtendedProperty id=\"dukptproduct\">CC01</ExtendedProperty>\n",outputBuffer);
-			asprintf(&outputBuffer, "%s</ExtendedPropertyList>\n",outputBuffer);
 			asprintf(&outputBuffer, "%s<CardDetails>\n",outputBuffer);
 			asprintf(&outputBuffer, "%s<ICC type=\"EMV\">\n",outputBuffer);
-			asprintf(&outputBuffer, "%s<ICCTag tagid=\"ENCRYPTEDCARDDETAILS\">0D398D1F173BF6AAD98B54263D734C1078483FDC2456C78FA8B94A5179CA43C2B30B294DA38B63E4</ICCTag>\n",outputBuffer);
+			asprintf(&outputBuffer, "%s<ICCTag tagid=\"ENCRYPTEDCARDDETAILS\">4447F41D99D261DE1746EF1BB7E57612</ICCTag>\n",outputBuffer);
 			emvparse(transaction_data, transaction_data_len, t, &tindex, 0, &outputBuffer);
 			asprintf(&outputBuffer, "%s</ICC>\n",outputBuffer);
 			asprintf(&outputBuffer, "%s</CardDetails>\n",outputBuffer);

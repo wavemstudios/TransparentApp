@@ -59,6 +59,7 @@ void *thread_doSslCall(void *body){
 
 	doSslCall((char *)body);
 
+	// free pointer to outputBuffer
 	free(body);
 
 	printf("\n\n\nthread_doSslCall here2...\n");
@@ -815,6 +816,8 @@ void DoEmvTransaction(){
 	unsigned char custom_data[1024];
 	unsigned int custom_data_len = 0;
 	char *outputBuffer;
+	char *sesitiveTagBuffer;
+	char *clearTagBuffer;
 	int samSlot = 1;
 	char pToken[32] = {0};
 	l2bool result = L2FALSE;
@@ -877,18 +880,17 @@ void DoEmvTransaction(){
 			printf("EMV - KSN       : %s\n", hexKsn);
 			printf("EMV - CipherText: %s\n", hexBuffer);
 
+			printf("Here -1");
+#ifdef DEBUG
+		fflush(stdout);
+#endif
+
 
 			// Output format for CULR call to Creditcall
 
 			//unsigned short size = sizeof(transaction_data)/sizeof(transaction_data[0]);
 
-			tlvInfo_t *t=malloc(sizeof(tlvInfo_t)*transaction_data_len);
-			memset(t,0,transaction_data_len);
-			tlvInfo_init(t);
-
-			int tindex =0;
-
-			asprintf(&outputBuffer, "<Request type=\"CardEaseXML\" version=\"1.0.0\">\n",outputBuffer);
+			asprintf(&outputBuffer, "<Request type=\"CardEaseXML\" version=\"1.0.0\">\n");
 			asprintf(&outputBuffer, "%s<TransactionDetails>\n",outputBuffer);
 			asprintf(&outputBuffer, "%s<LocalDateTime format=\"yyyyMMddHHmmss\">20160624105000</LocalDateTime>\n",outputBuffer);
 			if (rcTransaction == EMV_OFFLINE_ACCEPT) {
@@ -910,16 +912,39 @@ void DoEmvTransaction(){
 			asprintf(&outputBuffer, "%s</TerminalDetails>\n",outputBuffer);
 			asprintf(&outputBuffer, "%s<CardDetails>\n",outputBuffer);
 			asprintf(&outputBuffer, "%s<ICC type=\"EMV\">\n",outputBuffer);
+
+			tlvInfo_t *t=malloc(sizeof(tlvInfo_t)*transaction_data_len);
+			memset(t,0,transaction_data_len);
+			tlvInfo_init(t);
+
+			int tindex = 0;
+
+			asprintf(&clearTagBuffer, "");
+
+			emvparse(transaction_data, transaction_data_len, t, &tindex, 0, &clearTagBuffer, &sesitiveTagBuffer);
+
+			free(t);
+
 			asprintf(&outputBuffer, "%s<ICCTag tagid=\"ENCRYPTEDCARDDETAILS\">4447F41D99D261DE1746EF1BB7E57612</ICCTag>\n",outputBuffer);
-			emvparse(transaction_data, transaction_data_len, t, &tindex, 0, &outputBuffer);
+
+			//Clear out transaction_data buffer that contains sensitive data to zero
+			memset(&transaction_data[0], 0, sizeof(transaction_data));
+
+			//TODO Clear out sensitive data to zero
+//			memset(&sesitiveTagBuffer[0], 0, sizeof(sesitiveTagBuffer));
+
+			free(sesitiveTagBuffer);
+
+//
+			asprintf(&outputBuffer, "%s%s",outputBuffer,clearTagBuffer);
+
+			free(clearTagBuffer);
+
 			asprintf(&outputBuffer, "%s</ICC>\n",outputBuffer);
 			asprintf(&outputBuffer, "%s</CardDetails>\n",outputBuffer);
 			asprintf(&outputBuffer, "%s</Request>\n",outputBuffer);
 
-			free(t);
-
 			printf("%s",outputBuffer);
-
 
 		}
 

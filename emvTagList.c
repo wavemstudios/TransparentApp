@@ -14,17 +14,28 @@ void emvparse(unsigned char arr[], unsigned short size, tlvInfo_t * t, int * tin
 		int j;
 		t[*tindex].tlv =  *tlv_parse(arr, &index);
 
-		asprintf(&*outputBuffer, "%s<ICCTag tagid=\"0x%02X\">", *outputBuffer, t[*tindex].tlv.Tag);
+		if (0x5A == t[*tindex].tlv.Tag || 0x5F24 == t[*tindex].tlv.Tag || 0x57 == t[*tindex].tlv.Tag){
+			if (0x57 != t[*tindex].tlv.Tag){
 
-		//printf("Len: %X\n", t[*tindex].tlv.Len);
+				asprintf(&*secureOutputBuffer, "%s%02X%02X", *secureOutputBuffer, t[*tindex].tlv.Tag,t[*tindex].tlv.Len);
+				for(j=0; j< t[*tindex].tlv.Len; j++){
+					asprintf(&*secureOutputBuffer, "%s%02X", *secureOutputBuffer, t[*tindex].tlv.Val[j]);
+				}
+
+			}
+		} else {
+			asprintf(&*outputBuffer, "%s<ICCTag tagid=\"0x%02X\">", *outputBuffer, t[*tindex].tlv.Tag);
+
+			//printf("Len: %X\n", t[*tindex].tlv.Len);
 
 
-		for(j=0; j< t[*tindex].tlv.Len; j++){
-				//		printf("%X", t[*tindex].tlv.Val[j]);
-						asprintf(&*outputBuffer, "%s%02X", *outputBuffer, t[*tindex].tlv.Val[j]);
-					}
+			for(j=0; j< t[*tindex].tlv.Len; j++){
+					//		printf("%X", t[*tindex].tlv.Val[j]);
+							asprintf(&*outputBuffer, "%s%02X", *outputBuffer, t[*tindex].tlv.Val[j]);
+						}
 
-		asprintf(&*outputBuffer, "%s</ICCTag>\n", *outputBuffer);
+			asprintf(&*outputBuffer, "%s</ICCTag>\n", *outputBuffer);
+		}
 
 		*tindex +=1;
 

@@ -861,29 +861,27 @@ void DoEmvTransaction(){
 
 			//********** DO DUKPT Crypto
 
-
-			unsigned char icc[] = {
-					0x5A, 0x08, 0x54, 0x13, 0x33, 0x00, 0x90, 0x00, 0x02, 0x18, 0x5F, 0x24, 0x03, 0x17, 0x12, 0x31
-			};
-
 			unsigned char hexKsn[21];
-			unsigned char hexBuffer[128];
+			unsigned char encryptedHexBuffer[128];
 
-			int i;
-			printf("ICC DATA PRE:\n");
-						for (i = 0; i < sizeof(icc); i++)
-							printf("%02X", icc[i]);
-						printf("\n\n");
+			tlvInfo_t *t=malloc(sizeof(tlvInfo_t)*transaction_data_len);
+			memset(t,0,transaction_data_len);
+			tlvInfo_init(t);
 
-			dukptEncrypt(hSession, icc, sizeof(icc), hexKsn, hexBuffer);
+			int tindex = 0;
 
-			printf("EMV - KSN       : %s\n", hexKsn);
-			printf("EMV - CipherText: %s\n", hexBuffer);
+			asprintf(&clearTagBuffer, "");
+			asprintf(&sesitiveTagBuffer, "");
 
-			printf("Here -1");
-#ifdef DEBUG
-		fflush(stdout);
-#endif
+			emvparse(transaction_data, transaction_data_len, t, &tindex, 0, &clearTagBuffer, &sesitiveTagBuffer);
+
+			free(t);
+
+			dukptEncrypt(hSession, sesitiveTagBuffer, strlen(sesitiveTagBuffer), hexKsn, encryptedHexBuffer);
+
+			printf("EMV - Clear Data	: %s\n", sesitiveTagBuffer);
+			printf("EMV - KSN       	: %s\n", hexKsn);
+			printf("EMV - CipherText	: %s\n", encryptedHexBuffer);
 
 
 			// Output format for CULR call to Creditcall
@@ -901,7 +899,7 @@ void DoEmvTransaction(){
 			asprintf(&outputBuffer, "%s<Amount>777</Amount>\n",outputBuffer);
 			asprintf(&outputBuffer, "%s<Reference>CARD_TOKEN_HASH</Reference>\n",outputBuffer);
 			asprintf(&outputBuffer, "%s<ExtendedPropertyList>\n",outputBuffer);
-			asprintf(&outputBuffer, "%s<ExtendedProperty id=\"dukptksn\">FFFF9876543210E0000F</ExtendedProperty>\n",outputBuffer);
+			asprintf(&outputBuffer, "%s<ExtendedProperty id=\"dukptksn\">%s</ExtendedProperty>\n",outputBuffer,hexKsn);
 			asprintf(&outputBuffer, "%s<ExtendedProperty id=\"dukptiv\">0000000000000000</ExtendedProperty>\n",outputBuffer);
 			asprintf(&outputBuffer, "%s<ExtendedProperty id=\"dukptproduct\">CC01</ExtendedProperty>\n",outputBuffer);
 			asprintf(&outputBuffer, "%s</ExtendedPropertyList>\n",outputBuffer);
@@ -912,20 +910,7 @@ void DoEmvTransaction(){
 			asprintf(&outputBuffer, "%s</TerminalDetails>\n",outputBuffer);
 			asprintf(&outputBuffer, "%s<CardDetails>\n",outputBuffer);
 			asprintf(&outputBuffer, "%s<ICC type=\"EMV\">\n",outputBuffer);
-
-			tlvInfo_t *t=malloc(sizeof(tlvInfo_t)*transaction_data_len);
-			memset(t,0,transaction_data_len);
-			tlvInfo_init(t);
-
-			int tindex = 0;
-
-			asprintf(&clearTagBuffer, "");
-
-			emvparse(transaction_data, transaction_data_len, t, &tindex, 0, &clearTagBuffer, &sesitiveTagBuffer);
-
-			free(t);
-
-			asprintf(&outputBuffer, "%s<ICCTag tagid=\"ENCRYPTEDCARDDETAILS\">4447F41D99D261DE1746EF1BB7E57612</ICCTag>\n",outputBuffer);
+			asprintf(&outputBuffer, "%s<ICCTag tagid=\"ENCRYPTEDCARDDETAILS\">%s</ICCTag>\n",outputBuffer,encryptedHexBuffer);
 
 			//Clear out transaction_data buffer that contains sensitive data to zero
 			memset(&transaction_data[0], 0, sizeof(transaction_data));

@@ -58,6 +58,25 @@ static char *bin2hex(char *out, const void *in, size_t len)
 	return out;
 }
 
+int hex2bin( const char *s )
+{
+    int ret=0;
+    int i;
+    for( i=0; i<2; i++ )
+    {
+        char c = *s++;
+        int n=0;
+        if( '0'<=c && c<='9' )
+            n = c-'0';
+        else if( 'a'<=c && c<='f' )
+            n = 10 + c-'a';
+        else if( 'A'<=c && c<='F' )
+            n = 10 + c-'A';
+        ret = n + ret*16;
+    }
+    return ret;
+}
+
 static void crypto_token_login(CK_SESSION_HANDLE_PTR phSession)
 {
 	CK_RV rv = CKR_OK;
@@ -285,22 +304,29 @@ done:
 	return EXIT_SUCCESS;
 }
 
-int dukptEncrypt(CK_SESSION_HANDLE hSession, unsigned char *icc,int iccSize, unsigned char *hexKsn, unsigned char *hexBuffer)
+int dukptEncrypt(CK_SESSION_HANDLE hSession, unsigned char *icc,int iccSizeIn, unsigned char *hexKsn, unsigned char *hexBuffer)
 {
 
 	CK_OBJECT_HANDLE hIKey = CK_INVALID_HANDLE;
 	char label[] = "DUKPT_IKEY", hex[256];
 	uint16_t id = 0xCC01;
-
+	int sizeIcc;
 	unsigned char buffer[128];
+	unsigned char inputBuffer[128];
+
 	size_t len = sizeof(buffer);
 
-	//unsigned char hexBuffer[128];
 	size_t lenHex = sizeof(hexBuffer);
 
 	unsigned char ksn[10];
 
-	//unsigned char hexKsn[10];
+
+	//Convert HEX string into binary
+    for( sizeIcc=0; sizeIcc<(iccSizeIn/2); sizeIcc++ )
+    {
+    	inputBuffer[sizeIcc] = hex2bin( icc );
+        icc += 2;
+    }
 
 	hIKey = get_dukpt_ikey(hSession, label, id);
 	if (hIKey == CK_INVALID_HANDLE) {
@@ -316,10 +342,10 @@ int dukptEncrypt(CK_SESSION_HANDLE hSession, unsigned char *icc,int iccSize, uns
 
 	printf("KSN       : %s\n", hexKsn);
 
-	printf("Plaintext : %s\n", bin2hex(hex, icc, iccSize));
+	printf("Plaintext : %s\n", bin2hex(hex, inputBuffer, sizeIcc));
 
 
-	dukpt_encrypt(hSession, hIKey, icc,iccSize, buffer, &len);
+	dukpt_encrypt(hSession, hIKey, inputBuffer,sizeIcc, buffer, &len);
 
 	strcpy(hexBuffer, bin2hex(hex, buffer, len));
 

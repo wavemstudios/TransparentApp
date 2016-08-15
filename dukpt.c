@@ -77,35 +77,6 @@ int hex2bin( const char *s )
     return ret;
 }
 
-static void crypto_token_login(CK_SESSION_HANDLE_PTR phSession)
-{
-	CK_RV rv = CKR_OK;
-
-	rv = C_Initialize(NULL_PTR);
-	assert(rv == CKR_OK);
-
-	rv = C_OpenSession(FEPKCS11_APP0_TOKEN_SLOT_ID,
-		    CKF_RW_SESSION | CKF_SERIAL_SESSION, NULL, NULL, phSession);
-	assert(rv == CKR_OK);
-
-	rv = C_Login(*phSession, CKU_USER, NULL_PTR, 0);
-	assert(rv == CKR_OK);
-}
-
-static void crypto_token_logout(CK_SESSION_HANDLE hSession)
-{
-	CK_RV rv = CKR_OK;
-
-	rv = C_Logout(hSession);
-	assert(rv == CKR_OK);
-
-	rv = C_CloseSession(hSession);
-	assert(rv == CKR_OK);
-
-	rv = C_Finalize(NULL_PTR);
-	assert(rv == CKR_OK);
-}
-
 static CK_OBJECT_HANDLE get_dukpt_ikey(CK_SESSION_HANDLE hSession, char *label,
 								    uint16_t id)
 {
@@ -222,91 +193,8 @@ void dukpt_encrypt(CK_SESSION_HANDLE hSession, CK_OBJECT_HANDLE hIKey,
 	C_DestroyObject(hSession, hTxnKey);
 }
 
-int runDukptTest(void)
-{
-	CK_SESSION_HANDLE hSession = CK_INVALID_HANDLE;
-	CK_OBJECT_HANDLE hIKey = CK_INVALID_HANDLE;
-	char label[] = "DUKPT_IKEY", hex[256];
-	uint16_t id = 0xCC01;
-	char track2[] = ";4111111111111111=151220100000?";
-	char track2ctls[] = "4111111111111111D15122010000000F";
-	unsigned char icc[] = {
-		0x5A, 0x08, 0x41, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11,
-		0x5F, 0x24, 0x03, 0x15, 0x12, 0x31,
-		0x57, 0x0F, 0x41, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11,
-			    0xD1, 0x51, 0x22, 0x01, 0x00, 0x00, 0x0F
-	};
-	unsigned char buffer[128];
-	size_t len = sizeof(buffer);
-
-	unsigned char ksn[10];
-
-
-	crypto_token_login(&hSession);
-
-	hIKey = get_dukpt_ikey(hSession, label, id);
-	if (hIKey == CK_INVALID_HANDLE) {
-		printf("No DUKPT Initial Key found (label '%s', id %02hX).\n",
-								     label, id);
-		goto done;
-	}
-
-	printf("Example 1: Contact Magstripe\n");
-	printf("KSN       : %s\n", bin2hex(hex, get_key_serial_number(
-					   hSession, hIKey, ksn), sizeof(ksn)));
-
-	printf("KSN       : %s\n", bin2hex(hex, get_key_serial_number(
-					   hSession, hIKey, ksn), sizeof(ksn)));
-
-	printf("KSN       : %s\n", bin2hex(hex, get_key_serial_number(
-					   hSession, hIKey, ksn), sizeof(ksn)));
-
-	printf("Plaintext : %s\n", bin2hex(hex, track2, strlen(track2)));
-	len = sizeof(buffer);
-	dukpt_encrypt(hSession, hIKey, track2, strlen(track2), buffer, &len);
-	printf("CipherText: %s\n\n", bin2hex(hex, buffer, len));
-
-	printf("Example 2: Contactless Magstripe\n");
-	printf("KSN       : %s\n", bin2hex(hex, get_key_serial_number(
-					   hSession, hIKey, ksn), sizeof(ksn)));
-
-	printf("KSN       : %s\n", bin2hex(hex, get_key_serial_number(
-						   hSession, hIKey, ksn), sizeof(ksn)));
-
-	printf("KSN       : %s\n", bin2hex(hex, get_key_serial_number(
-					   hSession, hIKey, ksn), sizeof(ksn)));
-
-	printf("Plaintext : %s\n", bin2hex(hex, track2ctls,
-							   strlen(track2ctls)));
-	len = sizeof(buffer);
-	dukpt_encrypt(hSession, hIKey, track2ctls, strlen(track2ctls), buffer,
-									  &len);
-	printf("CipherText: %s\n\n", bin2hex(hex, buffer, len));
-
-	printf("Example 3: ICC (Contact and Contactless)\n");
-	printf("KSN       : %s\n", bin2hex(hex, get_key_serial_number(
-					   hSession, hIKey, ksn), sizeof(ksn)));
-
-	printf("KSN       : %s\n", bin2hex(hex, get_key_serial_number(
-						   hSession, hIKey, ksn), sizeof(ksn)));
-
-	printf("KSN       : %s\n", bin2hex(hex, get_key_serial_number(
-					   hSession, hIKey, ksn), sizeof(ksn)));
-
-	printf("Plaintext : %s\n", bin2hex(hex, icc, sizeof(icc)));
-	len = sizeof(buffer);
-	dukpt_encrypt(hSession, hIKey, icc, sizeof(icc), buffer, &len);
-	printf("CipherText: %s\n", bin2hex(hex, buffer, len));
-
-done:
-	crypto_token_logout(hSession);
-
-	return EXIT_SUCCESS;
-}
-
 int dukptEncrypt(CK_SESSION_HANDLE hSession, unsigned char *icc,int iccSizeIn, unsigned char *hexKsn, unsigned char *hexBuffer)
 {
-
 	CK_OBJECT_HANDLE hIKey = CK_INVALID_HANDLE;
 	char label[] = "DUKPT_IKEY", hex[256];
 	uint16_t id = 0xCC01;
@@ -324,6 +212,7 @@ int dukptEncrypt(CK_SESSION_HANDLE hSession, unsigned char *icc,int iccSizeIn, u
 	//Convert HEX string into binary
     for( sizeIcc=0; sizeIcc<(iccSizeIn/2); sizeIcc++ )
     {
+    	//NOTE icc is a pointer
     	inputBuffer[sizeIcc] = hex2bin( icc );
         icc += 2;
     }
@@ -346,6 +235,13 @@ int dukptEncrypt(CK_SESSION_HANDLE hSession, unsigned char *icc,int iccSizeIn, u
 
 
 	dukpt_encrypt(hSession, hIKey, inputBuffer,sizeIcc, buffer, &len);
+
+	//Set input buffer to zero
+	for( sizeIcc=0; sizeIcc<(iccSizeIn/2); sizeIcc++ )
+	{
+		//NOTE icc is a pointer
+		inputBuffer[sizeIcc] = 0x00;
+	}
 
 	strcpy(hexBuffer, bin2hex(hex, buffer, len));
 

@@ -3,6 +3,8 @@
 
 #include "tlv.h"
 
-void  emvparse(unsigned char arr[], unsigned short size, tlvInfo_t * t, int * tindex, int index, char **outputBuffer, char **secureOutputBuffer);
+void emvparse(unsigned char arr[], unsigned short size, tlvInfo_t * t, int * tindex, int index, char **clearTagBuffer, char **sesitiveTagBuffer);
+
+void formatOutputBuffer(char **outputBuffer, unsigned char *hexKsn, char **clearTagBuffer, unsigned char *encryptedHexBuffer, int rcTransaction);
 
 #endif //EMVTAGLIST_H

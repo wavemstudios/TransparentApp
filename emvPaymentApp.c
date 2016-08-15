@@ -825,6 +825,7 @@ void DoEmvTransaction(){
 	int rcResponse = 0;
 	int rc = 0;
 	int i = 0;
+	int tindex = 0;
 
 
 	/* Perform EMVCo L2 transaction */
@@ -853,6 +854,7 @@ void DoEmvTransaction(){
 		result = l2manager_GetTransactionData(transaction_data,
 							  sizeof(transaction_data),
 							  &transaction_data_len);
+
 		if (result == L2TRUE) {
 			printf("TRANSACTION DATA:\n");
 			for (i = 0; i < transaction_data_len; i++)
@@ -863,13 +865,12 @@ void DoEmvTransaction(){
 
 			unsigned char hexKsn[21];
 			unsigned char encryptedHexBuffer[128];
+			char hex[256];
 
 			tlvInfo_t *t=malloc(sizeof(tlvInfo_t)*transaction_data_len);
 			memset(t,0,transaction_data_len);
 			tlvInfo_init(t);
-
-			int tindex = 0;
-
+			tindex = 0;
 			asprintf(&clearTagBuffer, "");
 			asprintf(&sesitiveTagBuffer, "");
 
@@ -883,51 +884,20 @@ void DoEmvTransaction(){
 			printf("EMV - KSN       	: %s\n", hexKsn);
 			printf("EMV - CipherText	: %s\n", encryptedHexBuffer);
 
-
 			// Output format for CULR call to Creditcall
 
 			//unsigned short size = sizeof(transaction_data)/sizeof(transaction_data[0]);
 
-			asprintf(&outputBuffer, "<Request type=\"CardEaseXML\" version=\"1.0.0\">\n");
-			asprintf(&outputBuffer, "%s<TransactionDetails>\n",outputBuffer);
-			asprintf(&outputBuffer, "%s<LocalDateTime format=\"yyyyMMddHHmmss\">20160624105000</LocalDateTime>\n",outputBuffer);
-			if (rcTransaction == EMV_OFFLINE_ACCEPT) {
-				asprintf(&outputBuffer, "%s<MessageType>Offline</MessageType>\n",outputBuffer);
-			} else {
-				asprintf(&outputBuffer, "%s<MessageType>Auth</MessageType>\n",outputBuffer);
-			}
-			asprintf(&outputBuffer, "%s<Amount>777</Amount>\n",outputBuffer);
-			asprintf(&outputBuffer, "%s<Reference>CARD_TOKEN_HASH</Reference>\n",outputBuffer);
-			asprintf(&outputBuffer, "%s<ExtendedPropertyList>\n",outputBuffer);
-			asprintf(&outputBuffer, "%s<ExtendedProperty id=\"dukptksn\">%s</ExtendedProperty>\n",outputBuffer,hexKsn);
-			asprintf(&outputBuffer, "%s<ExtendedProperty id=\"dukptiv\">0000000000000000</ExtendedProperty>\n",outputBuffer);
-			asprintf(&outputBuffer, "%s<ExtendedProperty id=\"dukptproduct\">CC01</ExtendedProperty>\n",outputBuffer);
-			asprintf(&outputBuffer, "%s</ExtendedPropertyList>\n",outputBuffer);
-			asprintf(&outputBuffer, "%s</TransactionDetails>\n",outputBuffer);
-			asprintf(&outputBuffer, "%s<TerminalDetails>\n",outputBuffer);
-			asprintf(&outputBuffer, "%s<TerminalID>99962873</TerminalID>\n",outputBuffer);
-			asprintf(&outputBuffer, "%s<TransactionKey>3uZwVaSDzfU4xqHH</TransactionKey>\n",outputBuffer);
-			asprintf(&outputBuffer, "%s</TerminalDetails>\n",outputBuffer);
-			asprintf(&outputBuffer, "%s<CardDetails>\n",outputBuffer);
-			asprintf(&outputBuffer, "%s<ICC type=\"EMV\">\n",outputBuffer);
-			asprintf(&outputBuffer, "%s<ICCTag tagid=\"ENCRYPTEDCARDDETAILS\">%s</ICCTag>\n",outputBuffer,encryptedHexBuffer);
+			formatOutputBuffer(&outputBuffer, hexKsn, &clearTagBuffer, encryptedHexBuffer, rcTransaction);
 
 			//Clear out transaction_data buffer that contains sensitive data to zero
 			memset(&transaction_data[0], 0, sizeof(transaction_data));
 
 			//TODO Clear out sensitive data to zero
-//			memset(&sesitiveTagBuffer[0], 0, sizeof(sesitiveTagBuffer));
+			memset(&sesitiveTagBuffer[0], 0, strlen(sesitiveTagBuffer));
 
 			free(sesitiveTagBuffer);
-
-//
-			asprintf(&outputBuffer, "%s%s",outputBuffer,clearTagBuffer);
-
 			free(clearTagBuffer);
-
-			asprintf(&outputBuffer, "%s</ICC>\n",outputBuffer);
-			asprintf(&outputBuffer, "%s</CardDetails>\n",outputBuffer);
-			asprintf(&outputBuffer, "%s</Request>\n",outputBuffer);
 
 			printf("%s",outputBuffer);
 

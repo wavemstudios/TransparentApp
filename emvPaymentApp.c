@@ -33,6 +33,7 @@
 #include "tlv.h"
 #include "emvTagList.h"
 #include "sslCall.h"
+#include "sha256.h"
 
 #include "macros.h"
 
@@ -880,15 +881,30 @@ void DoEmvTransaction(){
 
 			dukptEncrypt(hSession, sesitiveTagBuffer, strlen(sesitiveTagBuffer), hexKsn, encryptedHexBuffer);
 
+#ifdef DEBUG
 			printf("EMV - Clear Data	: %s\n", sesitiveTagBuffer);
 			printf("EMV - KSN       	: %s\n", hexKsn);
 			printf("EMV - CipherText	: %s\n", encryptedHexBuffer);
+#endif
+
+			unsigned char text1[]={"5413330090000218"};
+			unsigned char panToken[32];
+			SHA256_CTX ctx;
+			sha256_init(&ctx);
+			sha256_update(&ctx,sesitiveTagBuffer, strlen(sesitiveTagBuffer));
+			sha256_final(&ctx,panToken);
+
+			printf("hash DATA:\n");
+			for (i = 0; i < 32; i++)
+				printf("%02X", panToken[i]);
+			printf("\n\n");
+
 
 			// Output format for CULR call to Creditcall
 
 			//unsigned short size = sizeof(transaction_data)/sizeof(transaction_data[0]);
 
-			formatOutputBuffer(&outputBuffer, hexKsn, &clearTagBuffer, encryptedHexBuffer, rcTransaction);
+			formatOutputBuffer(&outputBuffer, hexKsn, &clearTagBuffer, encryptedHexBuffer, rcTransaction, panToken);
 
 			//Clear out transaction_data buffer that contains sensitive data to zero
 			memset(&transaction_data[0], 0, sizeof(transaction_data));

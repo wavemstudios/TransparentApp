@@ -13,7 +13,7 @@ executable: PaymentSample.c
 	$(CC) -c asn1.c -o asn1.o
 	$(CC) -c tlv.c -o tlv.o
 	ar -cvq emvPaymentLib.a emvPaymentApp.o sslCall.o emvTagList.o asn1.o tlv.o
-	$(CC) PaymentSample.c emvTagList.c ledBuzzerController.c dukpt.c emvPaymentLib.a -o PaymentSample -lfeclr -lleds -lbuzzer -lL2Manager -lL2Base -lL2PayPass -lL2Paywave -lL2Entrypoint -lL2ExpressPay -lL2Discover -lL2FeigHAL -lfememcard -lpthread -lssl -lfepkcs11 -lcrypto
+	$(CC) PaymentSample.c emvTagList.c ledBuzzerController.c dukpt.c sha256.c emvPaymentLib.a -o PaymentSample -lfeclr -lleds -lbuzzer -lL2Manager -lL2Base -lL2PayPass -lL2Paywave -lL2Entrypoint -lL2ExpressPay -lL2Discover -lL2FeigHAL -lfememcard -lpthread -lssl -lfepkcs11 -lcrypto
 	fesign --module opensc-pkcs11.so --pin 648219 --slotid 1 --keyid 00a0 --infile PaymentSample
 	
 .PHONY: clean

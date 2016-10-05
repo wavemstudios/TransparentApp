@@ -53,7 +53,7 @@ void emvparse(unsigned char arr[], unsigned short size, tlvInfo_t * t, int * tin
 		}
 }
 
-void formatOutputBuffer(char **outputBuffer, unsigned char *hexKsn, char **clearTagBuffer, unsigned char *encryptedHexBuffer, int rcTransaction){
+void formatOutputBuffer(char **outputBuffer, unsigned char *hexKsn, char **clearTagBuffer, unsigned char *encryptedHexBuffer, int rcTransaction, unsigned char *panToken){
 
 			asprintf(&*outputBuffer, "<Request type=\"CardEaseXML\" version=\"1.0.0\">\n");
 			asprintf(&*outputBuffer, "%s<TransactionDetails>\n",*outputBuffer);

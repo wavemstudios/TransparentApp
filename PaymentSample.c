@@ -87,7 +87,7 @@ int main(int argc, char *argv[])
 
 	//******************
 
-			printf("Card reader version %s started\n\n", PAYMENT_APP_VERSION);
+	printf("Card reader version %s started\n\n", PAYMENT_APP_VERSION);
 
 	PrintEMVPaymentAppVersions();
 

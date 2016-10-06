@@ -6,6 +6,7 @@
  */
 #include <stdio.h>
 #include <string.h>
+#include "macros.h"
 #include "sha256.h"
 
 

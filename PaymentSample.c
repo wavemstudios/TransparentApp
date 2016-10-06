@@ -128,9 +128,11 @@ reset:
 			goto err5;
 	}
 
+#ifdef DEBUG
 	if (SetEmvCallbacks(fd)){
 			goto err5;
 	}
+#endif
 
 	//EMV SET START TRANSACTION
 	ClearTransactionData();

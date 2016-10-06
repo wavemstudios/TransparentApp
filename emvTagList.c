@@ -53,7 +53,7 @@ void emvparse(unsigned char arr[], unsigned short size, tlvInfo_t * t, int * tin
 		}
 }
 
-void formatOutputBuffer(char **outputBuffer, unsigned char *hexKsn, char **clearTagBuffer, unsigned char *encryptedHexBuffer, int rcTransaction, unsigned char *panToken){
+void formatOutputBuffer(char **outputBuffer, unsigned char *hexKsn, char **clearTagBuffer, unsigned char *encryptedHexBuffer, int rcTransaction, unsigned char *hexToken){
 
 			asprintf(&*outputBuffer, "<Request type=\"CardEaseXML\" version=\"1.0.0\">\n");
 			asprintf(&*outputBuffer, "%s<TransactionDetails>\n",*outputBuffer);
@@ -64,7 +64,7 @@ void formatOutputBuffer(char **outputBuffer, unsigned char *hexKsn, char **clear
 				asprintf(&*outputBuffer, "%s<MessageType>Auth</MessageType>\n",*outputBuffer);
 			}
 			asprintf(&*outputBuffer, "%s<Amount>777</Amount>\n",*outputBuffer);
-			asprintf(&*outputBuffer, "%s<Reference>CARD_TOKEN_HASH</Reference>\n",*outputBuffer);
+			asprintf(&*outputBuffer, "%s<Reference>%s</Reference>\n",*outputBuffer,hexToken);
 			asprintf(&*outputBuffer, "%s<ExtendedPropertyList>\n",*outputBuffer);
 			asprintf(&*outputBuffer, "%s<ExtendedProperty id=\"dukptksn\">%s</ExtendedProperty>\n",*outputBuffer,hexKsn);
 			asprintf(&*outputBuffer, "%s<ExtendedProperty id=\"dukptiv\">0000000000000000</ExtendedProperty>\n",*outputBuffer);

@@ -816,6 +816,11 @@ void DoEmvTransaction(){
 	unsigned int transaction_data_len = 0;
 	unsigned char custom_data[1024];
 	unsigned int custom_data_len = 0;
+	unsigned char hexKsn[21];
+	unsigned char encryptedHexBuffer[128];
+	char hex[256];
+	unsigned char panToken[32];
+	unsigned char hexToken[32];
 	char *outputBuffer;
 	char *sesitiveTagBuffer;
 	char *clearTagBuffer;
@@ -841,12 +846,19 @@ void DoEmvTransaction(){
 	switch (rcTransaction) {
 	case EMV_OFFLINE_ACCEPT:
 	case EMV_GO_ONLINE:
+
+#ifdef DEBUG
 		if (onRequestOutcome.m_bpresent)
 			printf("onRequestOutcome.m_ucmsgid:  %d\n",
 						   (int)onRequestOutcome.m_ucmsgid);
 		if (onRestartOutcome.m_bpresent)
 			printf("onRestartOutcome.m_ucmsgid:  %d\n",
 						   (int)onRestartOutcome.m_ucmsgid);
+#endif
+
+		if (rcTransaction == EMV_OFFLINE_ACCEPT) {
+			emvSuccessVisualization();
+		}
 
 		/* Get transaction data.
 		 * Please see description of
@@ -857,16 +869,13 @@ void DoEmvTransaction(){
 							  &transaction_data_len);
 
 		if (result == L2TRUE) {
+
+#ifdef DEBUG
 			printf("TRANSACTION DATA:\n");
 			for (i = 0; i < transaction_data_len; i++)
 				printf("%02X", transaction_data[i]);
 			printf("\n\n");
-
-			//********** DO DUKPT Crypto
-
-			unsigned char hexKsn[21];
-			unsigned char encryptedHexBuffer[128];
-			char hex[256];
+#endif
 
 			tlvInfo_t *t=malloc(sizeof(tlvInfo_t)*transaction_data_len);
 			memset(t,0,transaction_data_len);
@@ -876,9 +885,25 @@ void DoEmvTransaction(){
 			asprintf(&sesitiveTagBuffer, "");
 
 			emvparse(transaction_data, transaction_data_len, t, &tindex, 0, &clearTagBuffer, &sesitiveTagBuffer);
-
 			free(t);
 
+			//Get PAN Token
+			SHA256_CTX ctx;
+			sha256_init(&ctx);
+			sha256_update(&ctx,sesitiveTagBuffer, strlen(sesitiveTagBuffer));
+			sha256_final(&ctx,panToken);
+
+#ifdef DEBUG
+			printf("hash DATA:\n");
+			for (i = 0; i < 32; i++)
+				printf("%02X", panToken[i]);
+			printf("\n\n");
+#endif
+
+			//TODO Test PAN Token against deny list here
+
+
+			//********** DO DUKPT Crypto
 			dukptEncrypt(hSession, sesitiveTagBuffer, strlen(sesitiveTagBuffer), hexKsn, encryptedHexBuffer);
 
 #ifdef DEBUG
@@ -887,24 +912,15 @@ void DoEmvTransaction(){
 			printf("EMV - CipherText	: %s\n", encryptedHexBuffer);
 #endif
 
-			unsigned char text1[]={"5413330090000218"};
-			unsigned char panToken[32];
-			SHA256_CTX ctx;
-			sha256_init(&ctx);
-			sha256_update(&ctx,sesitiveTagBuffer, strlen(sesitiveTagBuffer));
-			sha256_final(&ctx,panToken);
 
-			printf("hash DATA:\n");
-			for (i = 0; i < 32; i++)
-				printf("%02X", panToken[i]);
-			printf("\n\n");
 
+			strcpy(hexToken, bin2hex(hex, panToken, 32));
 
 			// Output format for CULR call to Creditcall
 
 			//unsigned short size = sizeof(transaction_data)/sizeof(transaction_data[0]);
 
-			formatOutputBuffer(&outputBuffer, hexKsn, &clearTagBuffer, encryptedHexBuffer, rcTransaction, panToken);
+			formatOutputBuffer(&outputBuffer, hexKsn, &clearTagBuffer, encryptedHexBuffer, rcTransaction, hexToken);
 
 			//Clear out transaction_data buffer that contains sensitive data to zero
 			memset(&transaction_data[0], 0, sizeof(transaction_data));
@@ -916,9 +932,9 @@ void DoEmvTransaction(){
 			free(clearTagBuffer);
 
 			printf("%s",outputBuffer);
-
 		}
 
+#ifdef DEBUG
 		/* Get custom data.
 		 * Please see description of rdol_clear.txt.
 		 */
@@ -931,6 +947,7 @@ void DoEmvTransaction(){
 				printf("%02X", custom_data[i]);
 			printf("\n\n");
 		}
+#endif
 
 		/** If the return value is EMV_GO_ONLINE you must call the
 		* function l2manager_ProcessOnlineResponse().
@@ -1016,8 +1033,6 @@ void DoEmvTransaction(){
 					printf("\n\n\nThread created...\n");
 					threadRunning = true;
 				}
-
-				emvSuccessVisualization();
 
 				disable_bar();
 				enable_running_led();

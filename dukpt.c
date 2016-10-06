@@ -33,10 +33,11 @@
 #include <string.h>
 #include <assert.h>
 #include <feig/fepkcs11.h>
+#include "macros.h"
 
 #define ARRAY_SIZE(x) (sizeof(x)/sizeof(*(x)))
 
-static char *bin2hex(char *out, const void *in, size_t len)
+char *bin2hex(char *out, const void *in, size_t len)
 {
 	const char *p = (const char *)in;
 	size_t i;

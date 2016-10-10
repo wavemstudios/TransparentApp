@@ -83,13 +83,13 @@ void emvSuccessVisualization()
 		leds_off(LEDS_GREEN1 | LEDS_GREEN2 | LEDS_GREEN3 |
 			 LEDS_YELLOW | LEDS_RED);
 		leds_on(LEDS_GREEN1);
-		usleep(80000);
+		usleep(50000);
 		leds_on(LEDS_GREEN2);
-		usleep(80000);
+		usleep(50000);
 		leds_on(LEDS_GREEN3);
-		usleep(180000);
+		usleep(100000);
 		buzzer_off();
-		usleep(500000);
+		usleep(300000);
 }
 
 void visualization_mifare_classic(int *tag, int *new_tag)

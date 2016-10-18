@@ -41,6 +41,7 @@
 
 #include "ledBuzzerController.h"
 #include "emvPaymentApp.h"
+#include "apduListener.h"
 
 #define WAIT_FOR_CARD_INSERTION_TIMEOUT	200000LL /* 2 seconds in us*/
 #define WAIT_FOR_CARD_REMOVAL_TIMEOUT	30000000LL /* 30 seconds in us*/
@@ -82,6 +83,8 @@ int main(int argc, char *argv[])
 	uint8_t rx_last_bits;
 	char *SELECT_EF_ID_INFO = "\x00\xA4\x00\x00\x02\x2F\xF7";
 	char *SELECT_EF_ACCESS = "\x00\xA4\x02\x0C\x02\x01\x1C";
+
+
 	int new_tag = 0, tag = 0;
 	uint16_t tag_typ = FEMEMCARD_TAG_TYPE_UNKNOWN;
 
@@ -439,6 +442,13 @@ start:
 					if (new_tag) {
 						printf("mifare desfire detected\n");
 					}
+
+					//******* TEST APDU EXTRA COMMANDS
+
+					int RestVal = apduListener(fd);
+
+					//******************************
+
 					tag = 1;
 					visualization_mifare_desfire(&tag, &new_tag);
 					continue;

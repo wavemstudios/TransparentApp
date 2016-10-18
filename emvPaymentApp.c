@@ -38,6 +38,7 @@
 #include "macros.h"
 
 #include "dukpt.h"
+#include "conversions.h"
 
 static char version[] = VERSION_MAJOR "." VERSION_MINOR "." VERSION_PATCH "." BUILD_TYPE;
 static char timestamp[] = __DATE__ " " __TIME__;
@@ -778,7 +779,6 @@ int IsEMVCard(int fd,uint64_t *pStatus) {
 	if (rc < 0) {
 		return rc;
 	}
-
 
 	if (!verify_icc_response(rsp_buffer, rx_frame_size, 0x9000)) {
 		if (asn1Validate(rsp_buffer, rx_frame_size - 2) == 0) {

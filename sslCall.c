@@ -95,12 +95,15 @@ int doSslCall(char *body)
     	free(message);
     	return -1;
 	}
-			/* send the request */
+
+	/* send the request */
 
      // initialize OpenSSL - do this once and stash ssl_ctx in a global var
 	 SSL_load_error_strings ();
 	 SSL_library_init ();
-	 SSL_CTX *ssl_ctx = SSL_CTX_new (SSLv23_client_method ());
+	 SSL_CTX *ssl_ctx = SSL_CTX_new (TLSv1_2_method ());
+
+	 //UPDATE Creditcall uses TLS v1.2 - we should try call TLSv1_2_method and not SSLv23_client_method
 
 	 // create an SSL connection and attach it to the socket
 	 SSL *SSLconn = SSL_new(ssl_ctx);

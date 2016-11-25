@@ -7,6 +7,7 @@
 
 #include<stdio.h>
 #include<string.h>    //strlen
+#include<stdint.h>
 #include<sys/socket.h>
 #include<arpa/inet.h> //inet_addr
 #include<unistd.h>    //write
@@ -19,6 +20,13 @@ int apduListener(int fd)
     int socket_desc , client_sock , c , read_size, idx;
     struct sockaddr_in server , client;
     char client_message[200];
+
+	int tlvTag;
+	int tlvLength;
+	int tlvCommand;
+	int tlvValuePointer;
+	int tlvValueOffset;
+	int commandOffset = 0;
 
     //Create socket
     socket_desc = socket(AF_INET , SOCK_STREAM , 0);
@@ -83,12 +91,6 @@ int apduListener(int fd)
     //Receive a message from client
     while( (read_size = recv(client_sock , client_message , 200 , 0)) >= 0 )
     {
-    	if (read_size % 2){
-    		printf("*Invalid request\n");
-    		write(client_sock ,"Invalid request" , sizeof("Invalid request"));
-    		continue;
-    	}
-
     	if (read_size == 0){
     			printf("connection timeout - wait again\n");
     		 	 puts("Waiting for incoming connections...");
@@ -98,18 +100,32 @@ int apduListener(int fd)
     		    continue;
     	}
 
-    	unsigned char *p_client_message = client_message;
-    	//Convert HEX string into binary
-        for( count=0; count<(read_size/2); count++ )
-        {
-        	//NOTE icc is a pointer
-        	inputBuffer[count] = hex2bin( p_client_message );
-        	p_client_message += 2;
-        }
+    	printf("INPUT DATA: ");
+    		for (idx = 0; idx < read_size; idx++){
+    				printf("%02X ", client_message[idx]);
+    		}
+    	printf("\n");
+
+    	parseTlvCommand(&client_message, sizeof(client_message), &tlvTag, &tlvLength,  &tlvCommand, &tlvValueOffset);
+    		printf("TAG: %02X\n", tlvTag);
+    		printf("COMMAND: %02X\n", tlvCommand);
+    		printf("ACTUAL LEN: %02X\n", tlvLength);
+    		printf("OFFSET: %02X\n", tlvValueOffset);
+
+    		printf("ACTUAL VALUE: ");
+    		for (idx = 0; idx < tlvLength; idx++){
+    				printf("%02X ", client_message[idx+tlvValueOffset]);
+    		}
+    		printf("\n");
+
+    	if (tlvCommand == 0xFE){
+    		printf("COMMAND THROUGH MODE: %02X\n", tlvCommand);
+    	}
+
 
 		printf("C-APDU: ");
-		for (idx = 0; idx < read_size/2; idx++) {
-			printf("0x%02X ", inputBuffer[idx]);
+		for (idx = 0; idx < tlvLength; idx++) {
+			printf("0x%02X ", client_message[idx+tlvValueOffset]);
 		}
 		printf("\n");
 
@@ -117,7 +133,7 @@ int apduListener(int fd)
 		/* GET_CHALLENGE */
 		int idx = 0;
 		rc = feclr_transceive(fd, 0,
-				inputBuffer, read_size/2, 0,
+					  &client_message[tlvValueOffset], tlvLength, 0,
 					  rsp_buffer, sizeof(rsp_buffer),
 					  &rx_frame_size, &rx_last_bits,
 					  0,
@@ -137,9 +153,12 @@ int apduListener(int fd)
 
 	        //Send the message back to client
 
-	        write(client_sock , outputBuffer , rx_frame_size*2);
+	        if( send(client_sock , rsp_buffer , rx_frame_size , MSG_NOSIGNAL) <= 0)
+	        {
+	            puts("Send failed");
+	            return 1;
+	        }
 
-	        printf("*C-APDU: %s\n", client_message);
 	        printf("*R-APDU: %s\n\n", outputBuffer);
 
 		} else {
@@ -161,6 +180,109 @@ int apduListener(int fd)
     {
         perror("recv failed");
     }
+
+    return 0;
+}
+
+int parseTlvCommand(unsigned char *buffer, int length, int *tlvTag, int *tlvLength, int *tlvCommand, int *tlvValueOffset) {
+
+		int startBuffer = (intptr_t)buffer;
+        // Get tag
+        int tag=*(buffer++);
+        int tagLength,tmp;
+        length--;
+        if((tag&0x1F)==0x1F) {
+            if((length--)==0) return -1;
+            tag=(tag<<8)|*(buffer++);
+            if((tag&0x80)==0x80) {
+                if((length--)==0) return -1;
+                tag=(tag<<8)|*(buffer++);
+                if((tag&0x80)==0x80) {
+                    if((length--)==0) return -1;
+                    tag=(tag<<8)|*(buffer++);
+                    if((tag&0x80)==0x80) {
+                        // Longer than 4 byte tags are NOT supported
+                        return -1;
+                    }
+                }
+            }
+        } else {
+            if(tag==0) {
+            	return -1;
+            }
+        }
+
+        (*tlvTag) = tag;
+
+        // Get length
+        if((length--)==0) return -1;
+        tmp=*(buffer++);
+        tagLength=0;
+
+        switch(tmp) {
+            case 0x84:
+                if((length--)==0) return -1;
+                tagLength=*(buffer++);
+                /* no break */
+            case 0x83:
+                if((length--)==0) return -1;
+                tagLength=(tagLength<<8)|*(buffer++);
+                /* no break */
+            case 0x82:
+                if((length--)==0) return -1;
+                tagLength=(tagLength<<8)|*(buffer++);
+                /* no break */
+            case 0x81:
+                if((length--)==0) return -1;
+                tagLength=(tagLength<<8)|*(buffer++);
+                break;
+            default:
+                if(tmp>=0x80) {
+                    // Other 8x variants are NOT supported
+                    return -1;
+                }
+                tagLength=tmp;
+                break;
+        }
+
+
+
+    	if ((*tlvTag) == 0x5F818101 && tagLength >= 0x02){
+//    		tlvCommand=(tlvtest[tlvValueOffset]<<8)|tlvtest[tlvValueOffset+1];
+//    		commandOffset = 0x02;
+    		(*tlvCommand)=*(buffer++);
+    		(*tlvCommand)=((*tlvCommand)<<8)|*(buffer++);
+    		tagLength--;
+    		tagLength--;
+
+    		if ((*tlvCommand) == 0x0200){
+    			printf("COMMAND POLL: %02X\n", (*tlvCommand));
+    		}
+    		if ((*tlvCommand) == 0x0400){
+    			printf("COMMAND LOAD TABLE: %02X\n", (*tlvCommand));
+    		}
+    		if ((*tlvCommand) == 0x0000){
+    			printf("COMMAND ANTENNA OFF: %02X\n", (*tlvCommand));
+    		}
+    	}
+
+    	if ((*tlvTag) == 0x5F848115 && tagLength >= 0x01){
+//    		tlvCommand=tlvtest[tlvValueOffset];
+//    		commandOffset = 0x01;
+    		(*tlvCommand)=*(buffer++);
+    		tagLength--;
+    		if ((*tlvCommand) == 0xFE){
+    			printf("COMMAND THROUGH MODE: %02X\n", (*tlvCommand));
+    		}
+    	}
+
+    	(*tlvLength) = tagLength;
+
+        (*tlvValueOffset) = (intptr_t)buffer - startBuffer;
+
+
+        // Check value
+        if(tagLength>length) return -1;
 
     return 0;
 }

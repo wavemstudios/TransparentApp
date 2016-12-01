@@ -8,6 +8,8 @@
 #ifndef APDULISTENER_H_
 #define APDULISTENER_H_
 
-int apduListener();
+int socketInitialise();
+int socketRead(int fd);
+int socketWrite();
 
 #endif /* APDULISTENER_H_ */

@@ -13,20 +13,22 @@
 #include<unistd.h>    //write
 #include<feig/feclr.h>
 
+#include "macros.h"
+
 #include "conversions.h"
 
-int apduListener(int fd)
-{
-    int socket_desc , client_sock , c , read_size, idx;
-    struct sockaddr_in server , client;
-    char client_message[200];
+int client_sock, socket_desc, idx;
+unsigned char rsp_buffer[258];
+size_t rx_frame_size;
+uint8_t rx_last_bits;
+uint64_t status;
+char *outputBuffer;
 
-	int tlvTag;
-	int tlvLength;
-	int tlvCommand;
-	int tlvValuePointer;
-	int tlvValueOffset;
-	int commandOffset = 0;
+int socketInitialise()
+{
+    int c;
+    struct sockaddr_in server , client;
+    unsigned char client_message[200];
 
     //Create socket
     socket_desc = socket(AF_INET , SOCK_STREAM , 0);
@@ -73,15 +75,25 @@ int apduListener(int fd)
     }
     puts("Connection accepted");
 
+    return 0;
+}
+
+int socketRead(int fd)
+{
+    int c , read_size;
+    struct sockaddr_in client;
+    unsigned char client_message[200];
+
+	int tlvTag;
+	int tlvLength;
+	int tlvCommand;
+	int tlvValuePointer;
+	int tlvValueOffset;
+
 	//***************TEST APDU COMMANDS
 	char *GET_CHALLENGE = "\x00\x84\x00\x00\x08";
-	unsigned char rsp_buffer[258];
-	size_t rx_frame_size;
-	uint8_t rx_last_bits;
-	uint64_t status;
 	int rc = 0;
 	int count = 0;
-	char *outputBuffer;
 	asprintf(&outputBuffer, "");
 	unsigned char inputBuffer[128];
 	//********************************
@@ -107,28 +119,26 @@ int apduListener(int fd)
     	printf("\n");
 
     	parseTlvCommand(&client_message, sizeof(client_message), &tlvTag, &tlvLength,  &tlvCommand, &tlvValueOffset);
-    		printf("TAG: %02X\n", tlvTag);
-    		printf("COMMAND: %02X\n", tlvCommand);
-    		printf("ACTUAL LEN: %02X\n", tlvLength);
-    		printf("OFFSET: %02X\n", tlvValueOffset);
+		printf("TAG: %02X\n", tlvTag);
+		printf("COMMAND: %02X\n", tlvCommand);
+		printf("ACTUAL LEN: %02X\n", tlvLength);
+		printf("OFFSET: %02X\n", tlvValueOffset);
 
-    		printf("ACTUAL VALUE: ");
-    		for (idx = 0; idx < tlvLength; idx++){
-    				printf("%02X ", client_message[idx+tlvValueOffset]);
-    		}
-    		printf("\n");
+		printf("ACTUAL VALUE: ");
+		for (idx = 0; idx < tlvLength; idx++){
+				printf("%02X ", client_message[idx+tlvValueOffset]);
+		}
+		printf("\n");
 
     	if (tlvCommand == 0xFE){
     		printf("COMMAND THROUGH MODE: %02X\n", tlvCommand);
     	}
-
 
 		printf("C-APDU: ");
 		for (idx = 0; idx < tlvLength; idx++) {
 			printf("0x%02X ", client_message[idx+tlvValueOffset]);
 		}
 		printf("\n");
-
 
 		/* GET_CHALLENGE */
 		int idx = 0;
@@ -143,6 +153,27 @@ int apduListener(int fd)
 								  strerror(rc));
 		}
 
+		socketWrite();
+
+        memset(&client_message, 0, sizeof(client_message));
+        asprintf(&outputBuffer, "");
+    }
+
+    if(read_size == 0)
+    {
+        puts("Client disconnected");
+        fflush(stdout);
+    }
+    else if(read_size == -1)
+    {
+        perror("recv failed");
+    }
+
+    return 0;
+}
+
+int socketWrite()
+{
 		if (status == FECLR_STS_OK) {
 			printf("R-APDU: ");
 			for (idx = 0; idx < rx_frame_size; idx++) {
@@ -159,27 +190,10 @@ int apduListener(int fd)
 	            return 1;
 	        }
 
-	        printf("*R-APDU: %s\n\n", outputBuffer);
-
-		} else {
+	 	} else {
 			 write(client_sock ,"NO CARD" , sizeof("NO CARD"));
 			 printf("*NO CARD\n");
 		}
-
-        memset(&client_message, 0, sizeof(client_message));
-        asprintf(&outputBuffer, "");
-    }
-
-
-    if(read_size == 0)
-    {
-        puts("Client disconnected");
-        fflush(stdout);
-    }
-    else if(read_size == -1)
-    {
-        perror("recv failed");
-    }
 
     return 0;
 }
@@ -279,7 +293,6 @@ int parseTlvCommand(unsigned char *buffer, int length, int *tlvTag, int *tlvLeng
     	(*tlvLength) = tagLength;
 
         (*tlvValueOffset) = (intptr_t)buffer - startBuffer;
-
 
         // Check value
         if(tagLength>length) return -1;

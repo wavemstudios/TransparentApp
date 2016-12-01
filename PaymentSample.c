@@ -143,6 +143,8 @@ reset:
 
 start:
 
+	socketInitialise();
+
 	disable_bar();
 	enable_running_led();
 
@@ -445,7 +447,7 @@ start:
 
 					//******* TEST APDU EXTRA COMMANDS
 
-					int RestVal = apduListener(fd);
+					int RestVal = socketRead(fd);
 
 					//******************************
 

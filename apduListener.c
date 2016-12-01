@@ -123,7 +123,6 @@ int socketRead(int fd)
 		printf("COMMAND: %02X\n", tlvCommand);
 		printf("ACTUAL LEN: %02X\n", tlvLength);
 		printf("OFFSET: %02X\n", tlvValueOffset);
-
 		printf("ACTUAL VALUE: ");
 		for (idx = 0; idx < tlvLength; idx++){
 				printf("%02X ", client_message[idx+tlvValueOffset]);

@@ -84,7 +84,6 @@ int main(int argc, char *argv[])
 	char *SELECT_EF_ID_INFO = "\x00\xA4\x00\x00\x02\x2F\xF7";
 	char *SELECT_EF_ACCESS = "\x00\xA4\x02\x0C\x02\x01\x1C";
 
-
 	int new_tag = 0, tag = 0;
 	uint16_t tag_typ = FEMEMCARD_TAG_TYPE_UNKNOWN;
 
@@ -194,9 +193,9 @@ start:
 		} else if (status != FECLR_STS_OK) {
 			new_tag = 1;
 			tag = 0;
-//			if (status != FECLR_STS_TIMEOUT){
-//				printf("Wait for card failed with status: 0x%08llX\n", status);
-//			}
+			if (status != FECLR_STS_TIMEOUT){
+				printf("Wait for card failed with status: 0x%08llX\n", status);
+			}
 			continue;
 		}
 
@@ -218,6 +217,20 @@ start:
 			visualization_felica(&tag, &new_tag);
 			continue;
 		}
+
+		int idx;
+
+		printf("ATQ: ");
+			for (idx = 0; idx < sizeof(tech_data.iso14443a_jewel.iso14443a.atqa); idx++) {
+				printf("0x%02X ", tech_data.iso14443a_jewel.iso14443a.atqa[idx]);
+			}
+		printf("\n");
+
+		printf("UID: ");
+			for (idx = 0; idx < tech_data.iso14443a_jewel.iso14443a.uid_size; idx++) {
+				printf("0x%02X ", tech_data.iso14443a_jewel.iso14443a.uid[idx]);
+			}
+		printf("\n");
 
 		if ((tech & FECLR_TECH_ISO14443A) &&
 		    (tech_data.iso14443a_jewel.type == FECLR_TECH_JEWEL)) {
@@ -447,7 +460,7 @@ start:
 
 					//******* TEST APDU EXTRA COMMANDS
 
-					int RestVal = socketRead(fd);
+					int RestVal = socketRead(fd, &tech_data);
 
 					//******************************
 

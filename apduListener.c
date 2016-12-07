@@ -19,6 +19,7 @@
 
 int client_sock, socket_desc, idx;
 unsigned char rsp_buffer[258];
+unsigned char out_buffer[258];
 size_t rx_frame_size;
 uint8_t rx_last_bits;
 uint64_t status;
@@ -78,11 +79,14 @@ int socketInitialise()
     return 0;
 }
 
-int socketRead(int fd)
+int socketRead(int fd, union tech_data *tech_data)
 {
     int c , read_size;
     struct sockaddr_in client;
     unsigned char client_message[200];
+    unsigned char defaultResponse[] = {0x5F,0x81,0x81,0x01,0x04,0x00,0x00,0x00,0x00}; //Antenna Off
+    unsigned char pollResponse[] = {0x5F,0x81,0x81,0x01,0x00,0x02,0x00}; //Poll for card response
+    unsigned char straightResponse[] = {0x5F,0x84,0x81,0x15,0x00,0xFE}; //Straight through response
 
 	int tlvTag;
 	int tlvLength;
@@ -129,30 +133,72 @@ int socketRead(int fd)
 		}
 		printf("\n");
 
-    	if (tlvCommand == 0xFE){
+		if (tlvCommand == 0x200){
+			printf("POLL RESPONSE: %02X\n", tlvCommand);
+
+			printf("ATQ: ");
+				for (idx = 0; idx < sizeof(tech_data->iso14443a_jewel.iso14443a.atqa); idx++) {
+					printf("0x%02X ", tech_data->iso14443a_jewel.iso14443a.atqa[idx]);
+				}
+			printf("\n");
+
+			printf("UID: ");
+				for (idx = 0; idx < tech_data->iso14443a_jewel.iso14443a.uid_size; idx++) {
+					printf("0x%02X ", tech_data->iso14443a_jewel.iso14443a.uid[idx]);
+				}
+			printf("\n");
+
+			memcpy(&out_buffer[sizeof(pollResponse)+sizeof(tech_data->iso14443a_jewel.iso14443a.atqa)], tech_data->iso14443a_jewel.iso14443a.uid, tech_data->iso14443a_jewel.iso14443a.uid_size);
+			memcpy(&out_buffer[sizeof(pollResponse)], tech_data->iso14443a_jewel.iso14443a.atqa, sizeof(tech_data->iso14443a_jewel.iso14443a.atqa));
+			memcpy(out_buffer, pollResponse, sizeof(pollResponse));
+
+			//update LENGTH to actual length of response + 1 for message byte
+			out_buffer[4] = sizeof(tech_data->iso14443a_jewel.iso14443a.atqa)+tech_data->iso14443a_jewel.iso14443a.uid_size+1;
+			rx_frame_size = sizeof(pollResponse)+sizeof(tech_data->iso14443a_jewel.iso14443a.atqa)+tech_data->iso14443a_jewel.iso14443a.uid_size;
+		} else if (tlvCommand == 0xFE){
     		printf("COMMAND THROUGH MODE: %02X\n", tlvCommand);
+
+			printf("C-APDU: ");
+			for (idx = 0; idx < tlvLength; idx++) {
+				printf("0x%02X ", client_message[idx+tlvValueOffset]);
+			}
+			printf("\n");
+
+			/* GET_CHALLENGE */
+			int idx = 0;
+			rc = feclr_transceive(fd, 0,
+						  &client_message[tlvValueOffset], tlvLength, 0,
+						  rsp_buffer, sizeof(rsp_buffer),
+						  &rx_frame_size, &rx_last_bits,
+						  0,
+						  &status);
+			if (rc < 0) {
+				printf("GET_CHALLENGE Transceive failed with error: \"%s\"\n",
+									  strerror(rc));
+			}
+
+			printf("PRE - R-APDU: ");
+				for (idx = 0; idx < rx_frame_size; idx++) {
+					printf("0x%02X ", rsp_buffer[idx]);
+					asprintf(&outputBuffer, "%s%02X",outputBuffer,rsp_buffer[idx]);
+				}
+			printf("\n");
+
+			memcpy(&out_buffer[sizeof(straightResponse)], rsp_buffer, rx_frame_size);
+			memcpy(out_buffer, straightResponse, sizeof(straightResponse));
+
+			//update LENGTH to actual length of response + 1 for message byte
+			out_buffer[4] = rx_frame_size+1;
+			rx_frame_size += sizeof(straightResponse);
+
+    	} else {
+			rx_frame_size =  sizeof(defaultResponse);
+			memcpy(out_buffer, defaultResponse, rx_frame_size);
     	}
 
-		printf("C-APDU: ");
-		for (idx = 0; idx < tlvLength; idx++) {
-			printf("0x%02X ", client_message[idx+tlvValueOffset]);
+		if (socketWrite() == -1){
+			return 0;
 		}
-		printf("\n");
-
-		/* GET_CHALLENGE */
-		int idx = 0;
-		rc = feclr_transceive(fd, 0,
-					  &client_message[tlvValueOffset], tlvLength, 0,
-					  rsp_buffer, sizeof(rsp_buffer),
-					  &rx_frame_size, &rx_last_bits,
-					  0,
-					  &status);
-		if (rc < 0) {
-			printf("GET_CHALLENGE Transceive failed with error: \"%s\"\n",
-								  strerror(rc));
-		}
-
-		socketWrite();
 
         memset(&client_message, 0, sizeof(client_message));
         asprintf(&outputBuffer, "");
@@ -176,14 +222,14 @@ int socketWrite()
 		if (status == FECLR_STS_OK) {
 			printf("R-APDU: ");
 			for (idx = 0; idx < rx_frame_size; idx++) {
-				printf("0x%02X ", rsp_buffer[idx]);
+				printf("0x%02X ", out_buffer[idx]);
 				asprintf(&outputBuffer, "%s%02X",outputBuffer,rsp_buffer[idx]);
 			}
 			printf("\n");
 
 	        //Send the message back to client
 
-	        if( send(client_sock , rsp_buffer , rx_frame_size , MSG_NOSIGNAL) <= 0)
+	        if( send(client_sock , out_buffer , rx_frame_size , MSG_NOSIGNAL) <= 0)
 	        {
 	            puts("Send failed");
 	            return 1;
@@ -192,6 +238,7 @@ int socketWrite()
 	 	} else {
 			 write(client_sock ,"NO CARD" , sizeof("NO CARD"));
 			 printf("*NO CARD\n");
+			 return -1;
 		}
 
     return 0;

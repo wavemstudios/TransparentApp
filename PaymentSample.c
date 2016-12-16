@@ -220,17 +220,25 @@ start:
 
 		int idx;
 
-		printf("ATQ: ");
-			for (idx = 0; idx < sizeof(tech_data.iso14443a_jewel.iso14443a.atqa); idx++) {
-				printf("0x%02X ", tech_data.iso14443a_jewel.iso14443a.atqa[idx]);
-			}
-		printf("\n");
+		if (tech & FECLR_TECH_ISO14443A){
+			printf("ATQ: ");
+				for (idx = 0; idx < sizeof(tech_data.iso14443a_jewel.iso14443a.atqa); idx++) {
+					printf("0x%02X ", tech_data.iso14443a_jewel.iso14443a.atqa[idx]);
+				}
+			printf("\n");
 
-		printf("UID: ");
-			for (idx = 0; idx < tech_data.iso14443a_jewel.iso14443a.uid_size; idx++) {
-				printf("0x%02X ", tech_data.iso14443a_jewel.iso14443a.uid[idx]);
-			}
-		printf("\n");
+			printf("UID: ");
+				for (idx = 0; idx < tech_data.iso14443a_jewel.iso14443a.uid_size; idx++) {
+					printf("0x%02X ", tech_data.iso14443a_jewel.iso14443a.uid[idx]);
+				}
+			printf("\n");
+		}
+
+		if (tech & FECLR_TECH_ISO14443B){
+			printf("TYPE B: ");
+			printf("\n");
+		}
+
 
 		if ((tech & FECLR_TECH_ISO14443A) &&
 		    (tech_data.iso14443a_jewel.type == FECLR_TECH_JEWEL)) {

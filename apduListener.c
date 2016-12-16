@@ -25,6 +25,12 @@ uint8_t rx_last_bits;
 uint64_t status;
 char *outputBuffer;
 
+char *SELECT_EF_ID_INFO = "\x00\xA4\x00\x00\x02\x2F\xF7";
+char *SELECT_EF_ACCESS = "\x00\xA4\x02\x0C\x02\x01\x1C";
+
+#define WAIT_FOR_CARD_INSERTION_TIMEOUT	200000LL /* 2 seconds in us*/
+#define WAIT_FOR_CARD_TIMEOUT	20000LL /* 0.2 seconds in us*/
+
 int socketInitialise()
 {
     int c;
@@ -81,12 +87,17 @@ int socketInitialise()
 
 int socketRead(int fd, union tech_data *tech_data)
 {
+	struct timeval firstResp;
+	uint64_t tech;
     int c , read_size;
     struct sockaddr_in client;
     unsigned char client_message[200];
-    unsigned char defaultResponse[] = {0x5F,0x81,0x81,0x01,0x04,0x00,0x00,0x00,0x00}; //Antenna Off
+    unsigned char defaultResponse[] = {0x5F,0x81,0x81,0x04,0x04,0x00,0x00,0x00,0x00}; //Antenna Off
     unsigned char pollResponse[] = {0x5F,0x81,0x81,0x01,0x00,0x02,0x00}; //Poll for card response
     unsigned char straightResponse[] = {0x5F,0x84,0x81,0x15,0x00,0xFE}; //Straight through response
+    unsigned char cardPresentResponse[] = {0x5F,0x81,0x81,0x01,0x02,0x06,0x01}; //Card Present response
+    unsigned char cardSwappedResponse[] = {0x5F,0x81,0x81,0x01,0x02,0x06,0xEE}; //Card Swapped response
+    unsigned char cardNotPresentResponse[] = {0x5F,0x81,0x81,0x01,0x02,0x06,0xFF}; //Card Not Present response
 
 	int tlvTag;
 	int tlvLength;
@@ -107,6 +118,7 @@ int socketRead(int fd, union tech_data *tech_data)
     //Receive a message from client
     while( (read_size = recv(client_sock , client_message , 200 , 0)) >= 0 )
     {
+
     	if (read_size == 0){
     			printf("connection timeout - wait again\n");
     		 	 puts("Waiting for incoming connections...");
@@ -134,7 +146,25 @@ int socketRead(int fd, union tech_data *tech_data)
 		printf("\n");
 
 		if (tlvCommand == 0x200){
-			printf("POLL RESPONSE: %02X\n", tlvCommand);
+
+			rc = feclr_wait_for_card(fd,
+						 WAIT_FOR_CARD_INSERTION_TIMEOUT,
+						 &tech,
+						 tech_data,
+						 &firstResp,
+						 &status);
+			if (rc < 0) {
+				printf("Wait for card failed with error: \"%s\"\n",
+				strerror(rc));
+				return 0;
+			} else if (status != FECLR_STS_OK) {
+				if (status != FECLR_STS_TIMEOUT){
+					printf("Wait for card failed with status: 0x%08llX\n", status);
+				}
+				continue;
+			}
+
+			printf("POLL RESPONSE: 0x%02X\n", tlvCommand);
 
 			printf("ATQ: ");
 				for (idx = 0; idx < sizeof(tech_data->iso14443a_jewel.iso14443a.atqa); idx++) {
@@ -152,11 +182,11 @@ int socketRead(int fd, union tech_data *tech_data)
 			memcpy(&out_buffer[sizeof(pollResponse)], tech_data->iso14443a_jewel.iso14443a.atqa, sizeof(tech_data->iso14443a_jewel.iso14443a.atqa));
 			memcpy(out_buffer, pollResponse, sizeof(pollResponse));
 
-			//update LENGTH to actual length of response + 1 for message byte
-			out_buffer[4] = sizeof(tech_data->iso14443a_jewel.iso14443a.atqa)+tech_data->iso14443a_jewel.iso14443a.uid_size+1;
+			//update LENGTH to actual length of response + 2 for message byte and table line number
+			out_buffer[4] = sizeof(tech_data->iso14443a_jewel.iso14443a.atqa)+tech_data->iso14443a_jewel.iso14443a.uid_size+2;
 			rx_frame_size = sizeof(pollResponse)+sizeof(tech_data->iso14443a_jewel.iso14443a.atqa)+tech_data->iso14443a_jewel.iso14443a.uid_size;
 		} else if (tlvCommand == 0xFE){
-    		printf("COMMAND THROUGH MODE: %02X\n", tlvCommand);
+    		printf("COMMAND THROUGH MODE: 0x%02X\n", tlvCommand);
 
 			printf("C-APDU: ");
 			for (idx = 0; idx < tlvLength; idx++) {
@@ -191,6 +221,35 @@ int socketRead(int fd, union tech_data *tech_data)
 			out_buffer[4] = rx_frame_size+1;
 			rx_frame_size += sizeof(straightResponse);
 
+    	} else if (tlvCommand == 0x600){
+    		printf("COMMAND DETECT CARD GONE: 0x%02X\n", tlvCommand);
+    		//TODO - detect if card is present
+
+			/* DO SELECT TEST IF CARD PRESENT*/
+			int idx = 0;
+			rc = feclr_transceive(fd, 0,
+									  SELECT_EF_ID_INFO, 7, 0,
+									  rsp_buffer, sizeof(rsp_buffer),
+									  &rx_frame_size, &rx_last_bits,
+									  0,
+									  &status);
+			if (rc < 0) {
+				printf("SELECT Transceive failed with error: \"%s\"\n",
+									  strerror(rc));
+			}
+
+			printf("SELECT Transceive done with status: 0x%02X \n",
+					status);
+
+			if (status == FECLR_STS_OK) {
+				rx_frame_size =  sizeof(cardPresentResponse);
+				memcpy(out_buffer, cardPresentResponse, rx_frame_size);
+			} else {
+				status = FECLR_STS_TIMEOUT;
+	    		rx_frame_size =  sizeof(cardNotPresentResponse);
+	    		memcpy(out_buffer, cardNotPresentResponse, rx_frame_size);
+			}
+
     	} else {
 			rx_frame_size =  sizeof(defaultResponse);
 			memcpy(out_buffer, defaultResponse, rx_frame_size);
@@ -219,7 +278,7 @@ int socketRead(int fd, union tech_data *tech_data)
 
 int socketWrite()
 {
-		if (status == FECLR_STS_OK) {
+		if (status == FECLR_STS_OK || status == FECLR_STS_TIMEOUT) {
 			printf("R-APDU: ");
 			for (idx = 0; idx < rx_frame_size; idx++) {
 				printf("0x%02X ", out_buffer[idx]);
@@ -236,10 +295,15 @@ int socketWrite()
 	        }
 
 	 	} else {
-			 write(client_sock ,"NO CARD" , sizeof("NO CARD"));
-			 printf("*NO CARD\n");
+			 printf("*NO CARD ERROR\n");
 			 return -1;
 		}
+
+		if (status == FECLR_STS_TIMEOUT) {
+			printf("*NO CARD DETECTED\n");
+			return -1;
+		}
+
 
     return 0;
 }

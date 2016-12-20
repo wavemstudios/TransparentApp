@@ -31,6 +31,37 @@ char *SELECT_EF_ACCESS = "\x00\xA4\x02\x0C\x02\x01\x1C";
 #define WAIT_FOR_CARD_INSERTION_TIMEOUT	200000LL /* 2 seconds in us*/
 #define WAIT_FOR_CARD_TIMEOUT	20000LL /* 0.2 seconds in us*/
 
+fd_set read_flags,write_flags; // the flag sets to be used
+struct timeval waitd = {10, 0};          // the max wait time for an event
+int sel;                      // holds return value for select();
+
+int socketListen()
+{
+	FD_ZERO(&read_flags);
+	FD_ZERO(&write_flags);
+	FD_SET(client_sock, &read_flags);
+	FD_SET(client_sock, &write_flags);
+	FD_SET(STDIN_FILENO, &read_flags);
+	FD_SET(STDIN_FILENO, &write_flags);
+
+	sel = select(client_sock+1, &read_flags, &write_flags, (fd_set*)0, &waitd);
+
+	//if an error with select
+	if(sel < 0)
+		return 0;
+
+	//socket ready for reading
+	if(FD_ISSET(client_sock, &read_flags)) {
+		printf("GOT SOCKET MESSAGE...\n");
+		//clear set
+		FD_CLR(client_sock, &read_flags);
+		return 1;
+	}
+
+	return 0;
+}
+
+
 int socketInitialise()
 {
     int c;
@@ -147,6 +178,7 @@ int socketRead(int fd, union tech_data *tech_data)
 
 		if (tlvCommand == 0x200){
 
+			/*
 			rc = feclr_wait_for_card(fd,
 						 WAIT_FOR_CARD_INSERTION_TIMEOUT,
 						 &tech,
@@ -163,6 +195,7 @@ int socketRead(int fd, union tech_data *tech_data)
 				}
 				continue;
 			}
+			*/
 
 			printf("POLL RESPONSE: 0x%02X\n", tlvCommand);
 
@@ -228,7 +261,7 @@ int socketRead(int fd, union tech_data *tech_data)
 			/* DO SELECT TEST IF CARD PRESENT*/
 			int idx = 0;
 			rc = feclr_transceive(fd, 0,
-									  SELECT_EF_ID_INFO, 7, 0,
+									  SELECT_EF_ACCESS, 7, 0,
 									  rsp_buffer, sizeof(rsp_buffer),
 									  &rx_frame_size, &rx_last_bits,
 									  0,
@@ -236,18 +269,18 @@ int socketRead(int fd, union tech_data *tech_data)
 			if (rc < 0) {
 				printf("SELECT Transceive failed with error: \"%s\"\n",
 									  strerror(rc));
+				status = FECLR_STS_TIMEOUT;
 			}
 
-			printf("SELECT Transceive done with status: 0x%02X \n",
-					status);
-
-			if (status == FECLR_STS_OK) {
+			if (rx_frame_size != 0x00) {
+				printf("card Present \n");
 				rx_frame_size =  sizeof(cardPresentResponse);
 				memcpy(out_buffer, cardPresentResponse, rx_frame_size);
 			} else {
+				printf("card not Present \n");
 				status = FECLR_STS_TIMEOUT;
-	    		rx_frame_size =  sizeof(cardNotPresentResponse);
-	    		memcpy(out_buffer, cardNotPresentResponse, rx_frame_size);
+				rx_frame_size =  sizeof(cardNotPresentResponse);
+				memcpy(out_buffer, cardNotPresentResponse, rx_frame_size);
 			}
 
     	} else {
@@ -278,7 +311,7 @@ int socketRead(int fd, union tech_data *tech_data)
 
 int socketWrite()
 {
-		if (status == FECLR_STS_OK || status == FECLR_STS_TIMEOUT) {
+		if (status == FECLR_STS_OK || status == FECLR_STS_TIMEOUT || status == 0xC038FE02) {
 			printf("R-APDU: ");
 			for (idx = 0; idx < rx_frame_size; idx++) {
 				printf("0x%02X ", out_buffer[idx]);
@@ -303,7 +336,6 @@ int socketWrite()
 			printf("*NO CARD DETECTED\n");
 			return -1;
 		}
-
 
     return 0;
 }

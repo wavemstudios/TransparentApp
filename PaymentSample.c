@@ -178,6 +178,10 @@ start:
 		fflush(stdout);
 #endif
 
+		if (socketListen()){
+			int RestVal = socketRead(fd, &tech_data);
+		}
+
 		isEMV = false;
 		rc = feclr_wait_for_card(fd,
 					 WAIT_FOR_CARD_INSERTION_TIMEOUT,

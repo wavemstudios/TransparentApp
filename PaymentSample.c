@@ -43,7 +43,7 @@
 #include "emvPaymentApp.h"
 #include "apduListener.h"
 
-#define WAIT_FOR_CARD_INSERTION_TIMEOUT	200000LL /* 2 seconds in us*/
+#define WAIT_FOR_CARD_INSERTION_TIMEOUT	20000LL /* 0.2 seconds in us*/
 #define WAIT_FOR_CARD_REMOVAL_TIMEOUT	30000000LL /* 30 seconds in us*/
 
 #define PAYMENT_APP_VERSION	"01.00.00"
@@ -143,6 +143,7 @@ reset:
 start:
 
 	socketInitialise();
+	setStatus(FECLR_STS_TIMEOUT);
 
 	disable_bar();
 	enable_running_led();
@@ -225,6 +226,7 @@ start:
 		int idx;
 
 		if (tech & FECLR_TECH_ISO14443A){
+			setStatus(FECLR_STS_OK);
 			printf("ATQ: ");
 				for (idx = 0; idx < sizeof(tech_data.iso14443a_jewel.iso14443a.atqa); idx++) {
 					printf("0x%02X ", tech_data.iso14443a_jewel.iso14443a.atqa[idx]);
@@ -236,11 +238,13 @@ start:
 					printf("0x%02X ", tech_data.iso14443a_jewel.iso14443a.uid[idx]);
 				}
 			printf("\n");
-		}
-
-		if (tech & FECLR_TECH_ISO14443B){
+		} else if (tech & FECLR_TECH_ISO14443B){
+			setStatus(FECLR_STS_OK);
 			printf("TYPE B: ");
 			printf("\n");
+		} else {
+			//NO Card
+			setStatus(FECLR_STS_TIMEOUT);
 		}
 
 

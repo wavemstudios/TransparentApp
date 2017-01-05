@@ -28,12 +28,17 @@ char *outputBuffer;
 char *SELECT_EF_ID_INFO = "\x00\xA4\x00\x00\x02\x2F\xF7";
 char *SELECT_EF_ACCESS = "\x00\xA4\x02\x0C\x02\x01\x1C";
 
-#define WAIT_FOR_CARD_INSERTION_TIMEOUT	200000LL /* 2 seconds in us*/
+#define WAIT_FOR_CARD_INSERTION_TIMEOUT	20000LL /* 0.2 seconds in us*/
 #define WAIT_FOR_CARD_TIMEOUT	20000LL /* 0.2 seconds in us*/
 
 fd_set read_flags,write_flags; // the flag sets to be used
-struct timeval waitd = {10, 0};          // the max wait time for an event
+struct timeval waitd = {0, 1};          // the max wait time for an event
 int sel;                      // holds return value for select();
+
+int setStatus(uint64_t newStatus)
+{
+	status = newStatus;
+}
 
 int socketListen()
 {
@@ -128,6 +133,7 @@ int socketRead(int fd, union tech_data *tech_data)
     unsigned char straightResponse[] = {0x5F,0x84,0x81,0x15,0x00,0xFE}; //Straight through response
     unsigned char cardPresentResponse[] = {0x5F,0x81,0x81,0x01,0x02,0x06,0x01}; //Card Present response
     unsigned char cardSwappedResponse[] = {0x5F,0x81,0x81,0x01,0x02,0x06,0xEE}; //Card Swapped response
+    unsigned char cardNotPresentPollResponse[] = {0x5F,0x81,0x81,0x01,0x02,0x02,0xFF}; //Card Not Present response
     unsigned char cardNotPresentResponse[] = {0x5F,0x81,0x81,0x01,0x02,0x06,0xFF}; //Card Not Present response
 
 	int tlvTag;
@@ -149,20 +155,19 @@ int socketRead(int fd, union tech_data *tech_data)
     //Receive a message from client
     while( (read_size = recv(client_sock , client_message , 200 , 0)) >= 0 )
     {
-
     	if (read_size == 0){
     			printf("connection timeout - wait again\n");
     		 	 puts("Waiting for incoming connections...");
     		 	 //accept connection from an incoming client
     		    client_sock = accept(socket_desc, (struct sockaddr *)&client, (socklen_t*)&c);
     		    printf("Connection accepted\n");
-    		    continue;
+    		    return 0;
     	}
 
     	printf("INPUT DATA: ");
-    		for (idx = 0; idx < read_size; idx++){
-    				printf("%02X ", client_message[idx]);
-    		}
+		for (idx = 0; idx < read_size; idx++){
+				printf("%02X ", client_message[idx]);
+		}
     	printf("\n");
 
     	parseTlvCommand(&client_message, sizeof(client_message), &tlvTag, &tlvLength,  &tlvCommand, &tlvValueOffset);
@@ -178,47 +183,50 @@ int socketRead(int fd, union tech_data *tech_data)
 
 		if (tlvCommand == 0x200){
 
-			/*
-			rc = feclr_wait_for_card(fd,
-						 WAIT_FOR_CARD_INSERTION_TIMEOUT,
-						 &tech,
-						 tech_data,
-						 &firstResp,
-						 &status);
+			/* DO SELECT TEST IF CARD PRESENT*/
+			int idx = 0;
+			rc = feclr_transceive(fd, 0,
+									  SELECT_EF_ACCESS, 7, 0,
+									  rsp_buffer, sizeof(rsp_buffer),
+									  &rx_frame_size, &rx_last_bits,
+									  0,
+									  &status);
 			if (rc < 0) {
-				printf("Wait for card failed with error: \"%s\"\n",
-				strerror(rc));
-				return 0;
-			} else if (status != FECLR_STS_OK) {
-				if (status != FECLR_STS_TIMEOUT){
-					printf("Wait for card failed with status: 0x%08llX\n", status);
-				}
-				continue;
+				printf("SELECT Transceive failed with error: \"%s\"\n",
+									  strerror(rc));
+				status = FECLR_STS_TIMEOUT;
 			}
-			*/
 
-			printf("POLL RESPONSE: 0x%02X\n", tlvCommand);
+			if (rx_frame_size == 0x00) {
+				printf("card not Present \n");
+				status = FECLR_STS_TIMEOUT;
+				rx_frame_size =  sizeof(cardNotPresentPollResponse);
+				memcpy(out_buffer, cardNotPresentPollResponse, rx_frame_size);
+			} else {
 
-			printf("ATQ: ");
+				printf("POLL RESPONSE: 0x%02X\n", tlvCommand);
+
+				printf("ATQ: ");
 				for (idx = 0; idx < sizeof(tech_data->iso14443a_jewel.iso14443a.atqa); idx++) {
 					printf("0x%02X ", tech_data->iso14443a_jewel.iso14443a.atqa[idx]);
 				}
-			printf("\n");
+				printf("\n");
 
-			printf("UID: ");
+				printf("UID: ");
 				for (idx = 0; idx < tech_data->iso14443a_jewel.iso14443a.uid_size; idx++) {
 					printf("0x%02X ", tech_data->iso14443a_jewel.iso14443a.uid[idx]);
 				}
-			printf("\n");
+				printf("\n");
 
-			memcpy(&out_buffer[sizeof(pollResponse)+sizeof(tech_data->iso14443a_jewel.iso14443a.atqa)], tech_data->iso14443a_jewel.iso14443a.uid, tech_data->iso14443a_jewel.iso14443a.uid_size);
-			memcpy(&out_buffer[sizeof(pollResponse)], tech_data->iso14443a_jewel.iso14443a.atqa, sizeof(tech_data->iso14443a_jewel.iso14443a.atqa));
-			memcpy(out_buffer, pollResponse, sizeof(pollResponse));
+				memcpy(&out_buffer[sizeof(pollResponse)+sizeof(tech_data->iso14443a_jewel.iso14443a.atqa)], tech_data->iso14443a_jewel.iso14443a.uid, tech_data->iso14443a_jewel.iso14443a.uid_size);
+				memcpy(&out_buffer[sizeof(pollResponse)], tech_data->iso14443a_jewel.iso14443a.atqa, sizeof(tech_data->iso14443a_jewel.iso14443a.atqa));
+				memcpy(out_buffer, pollResponse, sizeof(pollResponse));
 
-			//update LENGTH to actual length of response + 2 for message byte and table line number
-			out_buffer[4] = sizeof(tech_data->iso14443a_jewel.iso14443a.atqa)+tech_data->iso14443a_jewel.iso14443a.uid_size+2;
-			rx_frame_size = sizeof(pollResponse)+sizeof(tech_data->iso14443a_jewel.iso14443a.atqa)+tech_data->iso14443a_jewel.iso14443a.uid_size;
-		} else if (tlvCommand == 0xFE){
+				//update LENGTH to actual length of response + 2 for message byte and table line number
+				out_buffer[4] = sizeof(tech_data->iso14443a_jewel.iso14443a.atqa)+tech_data->iso14443a_jewel.iso14443a.uid_size+2;
+				rx_frame_size = sizeof(pollResponse)+sizeof(tech_data->iso14443a_jewel.iso14443a.atqa)+tech_data->iso14443a_jewel.iso14443a.uid_size;
+			}
+		} else if (tlvCommand == 0xFE) {
     		printf("COMMAND THROUGH MODE: 0x%02X\n", tlvCommand);
 
 			printf("C-APDU: ");
@@ -240,19 +248,28 @@ int socketRead(int fd, union tech_data *tech_data)
 									  strerror(rc));
 			}
 
-			printf("PRE - R-APDU: ");
+			if (rx_frame_size == 0x00) {
+				printf("card not Present \n");
+				status = FECLR_STS_TIMEOUT;
+				rx_frame_size =  sizeof(cardNotPresentResponse);
+				memcpy(out_buffer, cardNotPresentResponse, rx_frame_size);
+			} else {
+				printf("PRE - R-APDU: ");
+
 				for (idx = 0; idx < rx_frame_size; idx++) {
 					printf("0x%02X ", rsp_buffer[idx]);
 					asprintf(&outputBuffer, "%s%02X",outputBuffer,rsp_buffer[idx]);
 				}
-			printf("\n");
 
-			memcpy(&out_buffer[sizeof(straightResponse)], rsp_buffer, rx_frame_size);
-			memcpy(out_buffer, straightResponse, sizeof(straightResponse));
+				printf("\n");
 
-			//update LENGTH to actual length of response + 1 for message byte
-			out_buffer[4] = rx_frame_size+1;
-			rx_frame_size += sizeof(straightResponse);
+				memcpy(&out_buffer[sizeof(straightResponse)], rsp_buffer, rx_frame_size);
+				memcpy(out_buffer, straightResponse, sizeof(straightResponse));
+
+				//update LENGTH to actual length of response + 1 for message byte
+				out_buffer[4] = rx_frame_size+1;
+				rx_frame_size += sizeof(straightResponse);
+			}
 
     	} else if (tlvCommand == 0x600){
     		printf("COMMAND DETECT CARD GONE: 0x%02X\n", tlvCommand);

@@ -136,6 +136,8 @@ int socketRead(int fd, union tech_data *tech_data)
     unsigned char cardNotPresentPollResponse[] = {0x5F,0x81,0x81,0x01,0x02,0x02,0xFF}; //Card Not Present response
     unsigned char cardNotPresentResponse[] = {0x5F,0x81,0x81,0x01,0x02,0x06,0xFF}; //Card Not Present response
 
+    unsigned char desfireWrapper[] = {0x90,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00};
+
 	int tlvTag;
 	int tlvLength;
 	int tlvCommand;
@@ -229,16 +231,33 @@ int socketRead(int fd, union tech_data *tech_data)
 		} else if (tlvCommand == 0xFE) {
     		printf("COMMAND THROUGH MODE: 0x%02X\n", tlvCommand);
 
-			printf("C-APDU: ");
+			printf("NATIVE: ");
 			for (idx = 0; idx < tlvLength; idx++) {
 				printf("0x%02X ", client_message[idx+tlvValueOffset]);
+			}
+			printf("\n");
+
+
+			desfireWrapper[1] = client_message[tlvValueOffset];
+			desfireWrapper[4] = tlvLength-1;
+			desfireWrapper[tlvLength+4] = 0x00;
+			memcpy(&desfireWrapper[5], &client_message[tlvValueOffset+1], tlvLength-1);
+
+			//if only instruction byte do not add the SE byte
+			if (tlvLength == 1){
+				tlvLength = 0;
+			}
+
+			printf("desfireWrapper: ");
+			for (idx = 0; idx < tlvLength+5; idx++) {
+				printf("0x%02X ", desfireWrapper[idx]);
 			}
 			printf("\n");
 
 			/* GET_CHALLENGE */
 			int idx = 0;
 			rc = feclr_transceive(fd, 0,
-						  &client_message[tlvValueOffset], tlvLength, 0,
+						  desfireWrapper, tlvLength+5, 0,
 						  rsp_buffer, sizeof(rsp_buffer),
 						  &rx_frame_size, &rx_last_bits,
 						  0,
@@ -263,12 +282,25 @@ int socketRead(int fd, union tech_data *tech_data)
 
 				printf("\n");
 
-				memcpy(&out_buffer[sizeof(straightResponse)], rsp_buffer, rx_frame_size);
+				printf("SW1 SW2: ");
+
+				for (idx = rx_frame_size - 2; idx < rx_frame_size; idx++) {
+					printf("0x%02X ", rsp_buffer[idx]);
+					asprintf(&outputBuffer, "%s%02X",outputBuffer,rsp_buffer[idx]);
+				}
+
+				printf("\n");
+
+				printf("SW2 = 0x%02X \n", rsp_buffer[rx_frame_size - 1]);
+
+				out_buffer[sizeof(straightResponse)] = rsp_buffer[rx_frame_size - 1];
+
+				memcpy(&out_buffer[sizeof(straightResponse)+1], rsp_buffer, rx_frame_size-2);
 				memcpy(out_buffer, straightResponse, sizeof(straightResponse));
 
 				//update LENGTH to actual length of response + 1 for message byte
-				out_buffer[4] = rx_frame_size+1;
-				rx_frame_size += sizeof(straightResponse);
+				out_buffer[4] = rx_frame_size;
+				rx_frame_size += sizeof(straightResponse)-1;
 			}
 
     	} else if (tlvCommand == 0x600){

@@ -238,6 +238,7 @@ start:
 					printf("0x%02X ", tech_data.iso14443a_jewel.iso14443a.uid[idx]);
 				}
 			printf("\n");
+
 		} else if (tech & FECLR_TECH_ISO14443B){
 			setStatus(FECLR_STS_OK);
 			printf("TYPE B: ");
@@ -246,7 +247,6 @@ start:
 			//NO Card
 			setStatus(FECLR_STS_TIMEOUT);
 		}
-
 
 		if ((tech & FECLR_TECH_ISO14443A) &&
 		    (tech_data.iso14443a_jewel.type == FECLR_TECH_JEWEL)) {

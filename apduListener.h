@@ -10,6 +10,7 @@
 
 int socketInitialise();
 int socketRead(int fd, union tech_data *tech_data);
+int socketReadMifare(int fd, union tech_data *tech_data);
 int socketWrite();
 
 #endif /* APDULISTENER_H_ */

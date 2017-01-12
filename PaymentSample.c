@@ -281,6 +281,13 @@ start:
 				}
 				tag = 1;
 				visualization_mifare_classic(&tag, &new_tag);
+
+				//******************************
+
+				int RestVal = socketReadMifare(fd, &tech_data);
+
+				//******************************
+
 				continue;
 
 			case FEMEMCARD_TAG_TYPE_MIFARE_PL_SL2_2K:

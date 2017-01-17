@@ -38,6 +38,7 @@ int sel;                      // holds return value for select();
 int setStatus(uint64_t newStatus)
 {
 	status = newStatus;
+	return 0;
 }
 
 int socketListen()

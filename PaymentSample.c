@@ -69,6 +69,7 @@ int main(int argc, char *argv[])
 	struct timeval firstResp;
 	union tech_data tech_data;
 	uint64_t status, tech;
+	char version_no[64];
 
 	int fd = 0;
 	int rc = 0;
@@ -261,6 +262,10 @@ start:
 
 		if (tech & (FECLR_TECH_ISO14443A | FECLR_TECH_ISO14443B)) {
 			/* Evaluate tag */
+
+			fememc_get_version(version_no);
+			printf("fememc_get_version: %s\n", version_no);
+
 			rc = fememc_tag_evaluator(tech_data, tech, &tag_typ);
 			if (rc < 0) {
 				printf("Eval tag failed with error: \"%s\"\n",

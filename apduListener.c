@@ -12,10 +12,13 @@
 #include<arpa/inet.h> //inet_addr
 #include<unistd.h>    //write
 #include<feig/feclr.h>
+#include <feig/fememcard.h>
 
 #include "macros.h"
 
 #include "conversions.h"
+
+
 
 int client_sock, socket_desc, idx;
 unsigned char rsp_buffer[258];
@@ -30,7 +33,7 @@ char *SELECT_EF_ACCESS = "\x00\xA4\x02\x0C\x02\x01\x1C";
 
 #define WAIT_FOR_CARD_INSERTION_TIMEOUT	20000LL /* 0.2 seconds in us*/
 #define WAIT_FOR_CARD_TIMEOUT	20000LL /* 0.2 seconds in us*/
-
+#define BLOCKS_OFFSET 0x01
 fd_set read_flags,write_flags; // the flag sets to be used
 struct timeval waitd = {0, 1};          // the max wait time for an event
 int sel;                      // holds return value for select();
@@ -374,6 +377,12 @@ int socketReadMifare(int fd, union tech_data *tech_data)
     unsigned char cardNotPresentPollResponse[] = {0x5F,0x81,0x81,0x01,0x02,0x02,0xFF}; //Card Not Present response
     unsigned char cardNotPresentResponse[] = {0x5F,0x81,0x81,0x01,0x02,0x06,0xFF}; //Card Not Present response
 
+    unsigned char mifareSetKeysResponse[] = {0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00};
+    unsigned char mifareAuthSafeReadResponse[] = {0x5F,0x84,0x81,0x10,0x00,0x01};
+    unsigned char mifareAuthUnsafeReadResponse[] = {0x5F,0x84,0x81,0x10,0x00,0x02};
+    unsigned char mifareAuthSafeWriteResponse[] = {0x5F,0x84,0x81,0x10,0x00,0x03};
+    unsigned char mifareAuthUnsafeWriteResponse[] = {0x5F,0x84,0x81,0x10,0x00,0x04};
+
 	int tlvTag;
 	int tlvLength;
 	int tlvCommand;
@@ -391,6 +400,9 @@ int socketReadMifare(int fd, union tech_data *tech_data)
 	uint8_t data_buf[48];
 	uint8_t data_write_buf[16] = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 	uint8_t block_addr = 0x28;
+
+	unsigned char read_status;
+	unsigned char auth_status;
 
 	//********************************
 
@@ -466,8 +478,63 @@ int socketReadMifare(int fd, union tech_data *tech_data)
     	} else if (tlvCommand == 0x01) {
     		printf("DO MIFARE SAFE READ: %02X\n", tlvCommand);
 
-    		rx_frame_size =  sizeof(defaultResponse);
-    		memcpy(out_buffer, defaultResponse, rx_frame_size);
+    		printf("Mifare Classic 1k Card found, try a authent!\n");
+    			rc = fememc_mfr_cl_authent(fd, *tech_data, (uint16_t)client_message[tlvValueOffset],
+    			MFR_CLASSIC_KEY_A, keyA, &auth_status );
+    			if (rc < 0) {
+    				printf("Authent Error: \"%s\"\n", strerror(rc));
+    			}
+
+    			if (auth_status != FEMEMCARD_STATE_OK) {
+    				printf("Auth Error: %d\n", auth_status);
+    			}
+    			printf("Auth status: %d\n", auth_status);
+
+    			//Clear out data buffer to zero
+    			memset(&data_buf[0], 0, sizeof(data_buf));
+
+    			printf("BLOCK ADDRESS: %d\n", client_message[tlvValueOffset]);
+    			printf("NBR BLOCKS: %d\n", client_message[tlvValueOffset+BLOCKS_OFFSET]);
+
+    			printf("Read the complete Sector 0!\n");
+    			rc = fememc_mfr_cl_read(fd, (uint16_t)client_message[tlvValueOffset], client_message[tlvValueOffset+BLOCKS_OFFSET], &data_buf[0],
+    			(unsigned short)sizeof(data_buf), &read_status );
+
+    			printf("Read  rc: %d\n", rc);
+    			printf("Read read_status: %d\n", read_status);
+    			printf("Read rc error string: \"%s\"\n",
+    					strerror(rc));
+
+    			if (rc == 0) {
+    				if (read_status == FEMEMCARD_STATE_OK) {
+    					idx = 0;
+    					printf("%s:nn", "Received Bytes");
+    					printf("-->\n");
+    					for (idx = 0; idx < (client_message[tlvValueOffset+BLOCKS_OFFSET]*0x10); idx++) {
+    						printf("0x%02X ", data_buf[idx]);
+    						if ((idx == 15) || (idx == 31) ||
+    						(idx == 47) ){
+    							printf("\n");
+    						}
+    					}
+    					printf("\n");
+    				} else {
+    					printf("Read Error read_status: %d\n", read_status);
+    				}
+
+    				rx_frame_size =  sizeof(defaultResponse);
+    				memcpy(out_buffer, defaultResponse, rx_frame_size);
+
+    			} else {
+    				printf("Error Reading!!: ");
+    				printf("%d\n",rc);
+
+    				printf("Read Error read_status: %d\n", read_status);
+
+    	    		rx_frame_size =  sizeof(defaultResponse);
+    	    		memcpy(out_buffer, defaultResponse, rx_frame_size);
+    			}
+
 
     	} else if (tlvCommand == 0x02) {
     		printf("DO MIFARE UNSAFE READ: %02X\n", tlvCommand);

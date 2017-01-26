@@ -383,6 +383,8 @@ int socketReadMifare(int fd, union tech_data *tech_data)
     unsigned char mifareAuthSafeWriteResponse[] = {0x5F,0x84,0x81,0x10,0x00,0x03};
     unsigned char mifareAuthUnsafeWriteResponse[] = {0x5F,0x84,0x81,0x10,0x00,0x04};
 
+    unsigned char mifareReadFailResponse[] = {0x5F,0x84,0x81,0x04,0x04,0xFF,0xFF,0xFF,0xFF};
+
 	int tlvTag;
 	int tlvLength;
 	int tlvCommand;
@@ -395,8 +397,10 @@ int socketReadMifare(int fd, union tech_data *tech_data)
 	unsigned char inputBuffer[128];
 	//******************************** Mifare 1K support
 
+	//DEFAULT KEYS
 	uint8_t keyA[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 	uint8_t keyB[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+
 	uint8_t data_buf[48];
 	uint8_t data_write_buf[16] = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 	uint8_t block_addr = 0x28;
@@ -409,7 +413,7 @@ int socketReadMifare(int fd, union tech_data *tech_data)
 	memset(&client_message, 0, sizeof(client_message));
 
     //Receive a message from client
-    while( (read_size = recv(client_sock , client_message , 200 , 0)) >= 0 )
+    while( (read_size = recv(client_sock , client_message , 300 , 0)) >= 0 )
     {
     	if (read_size == 0){
     			printf("connection timeout - wait again\n");
@@ -472,11 +476,38 @@ int socketReadMifare(int fd, union tech_data *tech_data)
     	} else if (tlvCommand == 0x00) {
     		printf("DO MIFARE SET KEYS: %02X\n", tlvCommand);
 
-    		rx_frame_size =  sizeof(defaultResponse);
-    		memcpy(out_buffer, defaultResponse, rx_frame_size);
+    		memcpy(keyA, &client_message[tlvValueOffset],0x06);  //KeyA
+    		memcpy(keyB, &client_message[tlvValueOffset+0x0A],0x06);  //KeyB
+
+    		idx = 0;
+			printf("%s:nn", "Key A Received");
+			printf("-->\n");
+			for (idx = 0; idx < 0x06; idx++) {
+				printf("0x%02X ", keyA[idx]);
+			}
+			printf("\n");
+
+    		idx = 0;
+			printf("%s:nn", "Key B Received");
+			printf("-->\n");
+			for (idx = 0; idx < 0x06; idx++) {
+				printf("0x%02X ", keyB[idx]);
+			}
+			printf("\n");
+
+    		rx_frame_size =  sizeof(mifareSetKeysResponse);
+    		memcpy(out_buffer, mifareSetKeysResponse, rx_frame_size);
 
     	} else if (tlvCommand == 0x01) {
     		printf("DO MIFARE SAFE READ: %02X\n", tlvCommand);
+
+    		idx = 0;
+			printf("%s:nn", "Use Key A");
+			printf("-->\n");
+			for (idx = 0; idx < 0x06; idx++) {
+				printf("0x%02X ", keyA[idx]);
+			}
+			printf("\n");
 
     		printf("Mifare Classic 1k Card found, try a authent!\n");
     			rc = fememc_mfr_cl_authent(fd, *tech_data, (uint16_t)client_message[tlvValueOffset],
@@ -506,6 +537,7 @@ int socketReadMifare(int fd, union tech_data *tech_data)
     					strerror(rc));
 
     			if (rc == 0) {
+
     				if (read_status == FEMEMCARD_STATE_OK) {
     					idx = 0;
     					printf("%s:nn", "Received Bytes");
@@ -518,12 +550,23 @@ int socketReadMifare(int fd, union tech_data *tech_data)
     						}
     					}
     					printf("\n");
+
+    					memcpy(&out_buffer, mifareAuthSafeReadResponse, sizeof(mifareAuthSafeReadResponse));
+						memcpy(&out_buffer[sizeof(mifareAuthSafeReadResponse)], data_buf, (client_message[tlvValueOffset+BLOCKS_OFFSET]*0x10));
+
+						//update LENGTH to actual length of response + 1 for message byte
+						out_buffer[4] = (client_message[tlvValueOffset+BLOCKS_OFFSET]*0x10)+1;
+						rx_frame_size = sizeof(mifareAuthSafeReadResponse)+(client_message[tlvValueOffset+BLOCKS_OFFSET]*0x10);
+
     				} else {
     					printf("Read Error read_status: %d\n", read_status);
-    				}
 
-    				rx_frame_size =  sizeof(defaultResponse);
-    				memcpy(out_buffer, defaultResponse, rx_frame_size);
+    					//FORCE NEW POLL
+    					status = FECLR_STS_TIMEOUT;
+    					rx_frame_size =  sizeof(mifareReadFailResponse);
+    					memcpy(out_buffer, mifareReadFailResponse, rx_frame_size);
+
+    				}
 
     			} else {
     				printf("Error Reading!!: ");
@@ -531,8 +574,10 @@ int socketReadMifare(int fd, union tech_data *tech_data)
 
     				printf("Read Error read_status: %d\n", read_status);
 
-    	    		rx_frame_size =  sizeof(defaultResponse);
-    	    		memcpy(out_buffer, defaultResponse, rx_frame_size);
+    				//FORCE NEW POLL
+    				status = FECLR_STS_TIMEOUT;
+    	    		rx_frame_size =  sizeof(mifareReadFailResponse);
+    	    		memcpy(out_buffer, mifareReadFailResponse, rx_frame_size);
     			}
 
 
@@ -545,8 +590,84 @@ int socketReadMifare(int fd, union tech_data *tech_data)
     	} else if (tlvCommand == 0x03) {
     		printf("DO MIFARE SAFE WRITE: %02X\n", tlvCommand);
 
-    		rx_frame_size =  sizeof(defaultResponse);
-    		memcpy(out_buffer, defaultResponse, rx_frame_size);
+    		idx = 0;
+			printf("%s:nn", "Use Key B");
+			printf("-->\n");
+			for (idx = 0; idx < 0x06; idx++) {
+				printf("0x%02X ", keyB[idx]);
+			}
+			printf("\n");
+
+			printf("Mifare Classic 1k Card found, try a authent!\n");
+				rc = fememc_mfr_cl_authent(fd, *tech_data, (uint16_t)client_message[tlvValueOffset],
+				MFR_CLASSIC_KEY_B, keyB, &auth_status );
+				if (rc < 0) {
+					printf("Authent Error: \"%s\"\n", strerror(rc));
+				}
+
+				if (auth_status != FEMEMCARD_STATE_OK) {
+					printf("Auth Error: %d\n", auth_status);
+				}
+				printf("Auth status: %d\n", auth_status);
+
+				//Clear out data buffer to zero
+				memset(&data_buf[0], 0, sizeof(data_buf));
+
+				printf("BLOCK ADDRESS: %d\n", client_message[tlvValueOffset]);
+				printf("NBR BLOCKS: %d\n", client_message[tlvValueOffset+BLOCKS_OFFSET]);
+
+				printf("Read the complete Sector 0!\n");
+				rc = fememc_mfr_cl_read(fd, (uint16_t)client_message[tlvValueOffset], client_message[tlvValueOffset+BLOCKS_OFFSET], &data_buf[0],
+				(unsigned short)sizeof(data_buf), &read_status );
+
+				printf("Read  rc: %d\n", rc);
+				printf("Read read_status: %d\n", read_status);
+				printf("Read rc error string: \"%s\"\n",
+						strerror(rc));
+
+				if (rc == 0) {
+
+					if (read_status == FEMEMCARD_STATE_OK) {
+						idx = 0;
+						printf("%s:nn", "Received Bytes");
+						printf("-->\n");
+						for (idx = 0; idx < (client_message[tlvValueOffset+BLOCKS_OFFSET]*0x10); idx++) {
+							printf("0x%02X ", data_buf[idx]);
+							if ((idx == 15) || (idx == 31) ||
+							(idx == 47) ){
+								printf("\n");
+							}
+						}
+						printf("\n");
+
+						memcpy(&out_buffer, mifareAuthSafeReadResponse, sizeof(mifareAuthSafeReadResponse));
+						memcpy(&out_buffer[sizeof(mifareAuthSafeReadResponse)], data_buf, (client_message[tlvValueOffset+BLOCKS_OFFSET]*0x10));
+
+						//update LENGTH to actual length of response + 1 for message byte
+						out_buffer[4] = (client_message[tlvValueOffset+BLOCKS_OFFSET]*0x10)+1;
+						rx_frame_size = sizeof(mifareAuthSafeReadResponse)+(client_message[tlvValueOffset+BLOCKS_OFFSET]*0x10);
+
+					} else {
+						printf("Read Error read_status: %d\n", read_status);
+
+						//FORCE NEW POLL
+						status = FECLR_STS_TIMEOUT;
+						rx_frame_size =  sizeof(mifareReadFailResponse);
+						memcpy(out_buffer, mifareReadFailResponse, rx_frame_size);
+
+					}
+
+				} else {
+					printf("Error Reading!!: ");
+					printf("%d\n",rc);
+
+					printf("Read Error read_status: %d\n", read_status);
+
+					//FORCE NEW POLL
+					status = FECLR_STS_TIMEOUT;
+					rx_frame_size =  sizeof(mifareReadFailResponse);
+					memcpy(out_buffer, mifareReadFailResponse, rx_frame_size);
+				}
 
     	} else if (tlvCommand == 0x04) {
     		printf("DO MIFARE UNSAFE WRITE: %02X\n", tlvCommand);
@@ -562,7 +683,15 @@ int socketReadMifare(int fd, union tech_data *tech_data)
     	}
 
 		if (socketWrite() == -1){
-			return 0;
+
+			// Forece wait for xxx seconds for an RFID card to be presented.
+				printf("Forcing new card read...\n");
+				rc = feclr_wait_for_card(fd,
+				WAIT_FOR_CARD_INSERTION_TIMEOUT,
+				&tech,
+				tech_data,
+				NULL,
+				&status);
 		}
 
         memset(&client_message, 0, sizeof(client_message));
@@ -597,7 +726,7 @@ int socketWrite()
 	        if( send(client_sock , out_buffer , rx_frame_size , MSG_NOSIGNAL) <= 0)
 	        {
 	            puts("Send failed");
-	            return 1;
+	            return -1;
 	        }
 
 	 	} else {

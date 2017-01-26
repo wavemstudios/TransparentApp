@@ -149,6 +149,8 @@ start:
 	disable_bar();
 	enable_running_led();
 
+restart_polling:
+
 	new_tag = 1;
 	tag = 0;
 	isEMV = false;
@@ -284,14 +286,18 @@ start:
 				if (new_tag) {
 					printf("mifare classic 1k 2k 4k mini detected\n");
 				}
-				tag = 1;
-				visualization_mifare_classic(&tag, &new_tag);
 
 				//******************************
 
 				int RestVal = socketReadMifare(fd, &tech_data);
 
+				printf("*Here 2\n");
+
+				fflush(stdout);
 				//******************************
+
+				tag = 1;
+			//	visualization_mifare_classic(&tag, &new_tag);
 
 				continue;
 

@@ -370,23 +370,23 @@ int socketReadMifare(int fd, union tech_data *tech_data)
 	uint64_t tech;
     int c , read_size;
     struct sockaddr_in client;
-    unsigned char client_message[200];
-    unsigned char defaultResponse[] = {0x5F,0x81,0x81,0x04,0x04,0x00,0x00,0x00,0x00}; //Antenna Off
-    unsigned char pollResponse[] = {0x5F,0x81,0x81,0x01,0x00,0x02,0x00}; //Poll for card response
-    unsigned char straightResponse[] = {0x5F,0x84,0x81,0x15,0x00,0xFE}; //Straight through response
-    unsigned char cardPresentResponse[] = {0x5F,0x81,0x81,0x01,0x02,0x06,0x01}; //Card Present response
-    unsigned char cardSwappedResponse[] = {0x5F,0x81,0x81,0x01,0x02,0x06,0xEE}; //Card Swapped response
-    unsigned char cardNotPresentPollResponse[] = {0x5F,0x81,0x81,0x01,0x02,0x02,0xFF}; //Card Not Present response
-    unsigned char cardNotPresentResponse[] = {0x5F,0x81,0x81,0x01,0x02,0x06,0xFF}; //Card Not Present response
+    uint8_t client_message[200];
+    uint8_t defaultResponse[] = {0x5F,0x81,0x81,0x04,0x04,0x00,0x00,0x00,0x00}; //Antenna Off
+    uint8_t pollResponse[] = {0x5F,0x81,0x81,0x01,0x00,0x02,0x00}; //Poll for card response
+    uint8_t straightResponse[] = {0x5F,0x84,0x81,0x15,0x00,0xFE}; //Straight through response
+    uint8_t cardPresentResponse[] = {0x5F,0x81,0x81,0x01,0x02,0x06,0x01}; //Card Present response
+    uint8_t cardSwappedResponse[] = {0x5F,0x81,0x81,0x01,0x02,0x06,0xEE}; //Card Swapped response
+    uint8_t cardNotPresentPollResponse[] = {0x5F,0x81,0x81,0x01,0x02,0x02,0xFF}; //Card Not Present response
+    uint8_t cardNotPresentResponse[] = {0x5F,0x81,0x81,0x01,0x02,0x06,0xFF}; //Card Not Present response
 
-    unsigned char mifareSetKeysResponse[] = {0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00};
-    unsigned char mifareAuthSafeReadResponse[] = {0x5F,0x84,0x81,0x10,0x00,0x01};
-    unsigned char mifareAuthUnsafeReadResponse[] = {0x5F,0x84,0x81,0x10,0x00,0x02};
-    unsigned char mifareAuthSafeWriteResponse[] = {0x5F,0x84,0x81,0x10,0x00,0x03};
-    unsigned char mifareAuthUnsafeWriteResponse[] = {0x5F,0x84,0x81,0x10,0x00,0x04};
+    uint8_t mifareSetKeysResponse[] = {0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00};
+    uint8_t mifareAuthSafeReadResponse[] = {0x5F,0x84,0x81,0x10,0x00,0x01};
+    uint8_t mifareAuthUnsafeReadResponse[] = {0x5F,0x84,0x81,0x10,0x00,0x02};
+    uint8_t mifareAuthSafeWriteResponse[] = {0x5F,0x84,0x81,0x10,0x00,0x03};
+    uint8_t mifareAuthUnsafeWriteResponse[] = {0x5F,0x84,0x81,0x10,0x00,0x04};
 
-    unsigned char mifareReadFailResponse[] = {0x5F,0x84,0x81,0x04,0x04,0xFF,0xFF,0xFF,0xFF};
-    unsigned char mifareWriteResponse[] = {0x5F,0x84,0x81,0x04,0x04,0x00,0x00,0x00,0x00};
+    uint8_t mifareReadFailResponse[] = {0x5F,0x84,0x81,0x04,0x04,0xFF,0xFF,0xFF,0xFF};
+    uint8_t mifareWriteResponse[] = {0x5F,0x84,0x81,0x04,0x04,0x00,0x00,0x00,0x00};
 
 	int tlvTag;
 	int tlvLength;
@@ -397,7 +397,7 @@ int socketReadMifare(int fd, union tech_data *tech_data)
 	int rc = 0;
 	int count = 0;
 	asprintf(&outputBuffer, "");
-	unsigned char inputBuffer[128];
+	uint8_t inputBuffer[128];
 	//******************************** Mifare 1K support
 
 	//DEFAULT KEYS
@@ -406,12 +406,16 @@ int socketReadMifare(int fd, union tech_data *tech_data)
 	uint8_t keyValue[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
 	uint8_t data_buf[48];
-	uint8_t data_write_buf[16] = {0x91, 0x92, 0x93, 0x94, 0x95, 0x96, 0x97, 0x98, 0x1F, 0x1F, 0x1F, 0x1F, 0x1F, 0x1F, 0x1F, 0x1F};
+	uint8_t data_write_buf[48] = {0x91, 0x92, 0x93, 0x94, 0x95, 0x96, 0x97, 0x98, 0x1F, 0x1F, 0x1F, 0x1F, 0x1F, 0x1F, 0x1F, 0x1F,
+			0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87, 0x88, 0x2F, 0x2F, 0x2F, 0x2F, 0x2F, 0x2F, 0x2F, 0x2F,
+			0x71, 0x72, 0x73, 0x74, 0x75, 0x76, 0x77, 0x98, 0x3F, 0x3F, 0x3F, 0x3F, 0x3F, 0x3F, 0x3F, 0x3F
+	};
+
 	uint8_t block_addr = 0x28;
 
-	unsigned char read_status;
-	unsigned char write_status;
-	unsigned char auth_status;
+	uint8_t read_status;
+	uint8_t write_status;
+	uint8_t auth_status;
 
 	//********************************
 
@@ -452,31 +456,51 @@ int socketReadMifare(int fd, union tech_data *tech_data)
 
 			printf("POLL RESPONSE: 0x%02X\n", tlvCommand);
 
-			printf("ATQ: ");
-			for (idx = 0; idx < sizeof(tech_data->iso14443a_jewel.iso14443a.atqa); idx++) {
-				printf("0x%02X ", tech_data->iso14443a_jewel.iso14443a.atqa[idx]);
+			rc = fememc_mfr_cl_authent(fd, *tech_data, (uint16_t)client_message[tlvValueOffset],
+													MFR_CLASSIC_KEY_A, keyA, &auth_status );
+
+			if (rc < 0 || auth_status != FEMEMCARD_STATE_OK) {
+				printf("Card not present Authent Error: \"%s\"\n", strerror(rc));
+				status = FECLR_STS_TIMEOUT;
+				rx_frame_size =  sizeof(cardNotPresentPollResponse);
+				memcpy(out_buffer, cardNotPresentPollResponse, rx_frame_size);
+			} else {
+				printf("ATQ: ");
+				for (idx = 0; idx < sizeof(tech_data->iso14443a_jewel.iso14443a.atqa); idx++) {
+					printf("0x%02X ", tech_data->iso14443a_jewel.iso14443a.atqa[idx]);
+				}
+				printf("\n");
+
+				printf("UID: ");
+				for (idx = 0; idx < tech_data->iso14443a_jewel.iso14443a.uid_size; idx++) {
+					printf("0x%02X ", tech_data->iso14443a_jewel.iso14443a.uid[idx]);
+				}
+				printf("\n");
+
+				memcpy(&out_buffer[sizeof(pollResponse)+sizeof(tech_data->iso14443a_jewel.iso14443a.atqa)], tech_data->iso14443a_jewel.iso14443a.uid, tech_data->iso14443a_jewel.iso14443a.uid_size);
+				memcpy(&out_buffer[sizeof(pollResponse)], tech_data->iso14443a_jewel.iso14443a.atqa, sizeof(tech_data->iso14443a_jewel.iso14443a.atqa));
+				memcpy(out_buffer, pollResponse, sizeof(pollResponse));
+
+				//update LENGTH to actual length of response + 2 for message byte and table line number
+				out_buffer[4] = sizeof(tech_data->iso14443a_jewel.iso14443a.atqa)+tech_data->iso14443a_jewel.iso14443a.uid_size+2;
+				rx_frame_size = sizeof(pollResponse)+sizeof(tech_data->iso14443a_jewel.iso14443a.atqa)+tech_data->iso14443a_jewel.iso14443a.uid_size;
 			}
-			printf("\n");
-
-			printf("UID: ");
-			for (idx = 0; idx < tech_data->iso14443a_jewel.iso14443a.uid_size; idx++) {
-				printf("0x%02X ", tech_data->iso14443a_jewel.iso14443a.uid[idx]);
-			}
-			printf("\n");
-
-			memcpy(&out_buffer[sizeof(pollResponse)+sizeof(tech_data->iso14443a_jewel.iso14443a.atqa)], tech_data->iso14443a_jewel.iso14443a.uid, tech_data->iso14443a_jewel.iso14443a.uid_size);
-			memcpy(&out_buffer[sizeof(pollResponse)], tech_data->iso14443a_jewel.iso14443a.atqa, sizeof(tech_data->iso14443a_jewel.iso14443a.atqa));
-			memcpy(out_buffer, pollResponse, sizeof(pollResponse));
-
-			//update LENGTH to actual length of response + 2 for message byte and table line number
-			out_buffer[4] = sizeof(tech_data->iso14443a_jewel.iso14443a.atqa)+tech_data->iso14443a_jewel.iso14443a.uid_size+2;
-			rx_frame_size = sizeof(pollResponse)+sizeof(tech_data->iso14443a_jewel.iso14443a.atqa)+tech_data->iso14443a_jewel.iso14443a.uid_size;
 
 		} else if (tlvCommand == 0x600){
 
-    		//default card present responce
-			rx_frame_size =  sizeof(cardPresentResponse);
-			memcpy(out_buffer, cardPresentResponse, rx_frame_size);
+			rc = fememc_mfr_cl_authent(fd, *tech_data, (uint16_t)client_message[tlvValueOffset],
+										MFR_CLASSIC_KEY_A, keyA, &auth_status );
+
+			if (rc < 0 || auth_status != FEMEMCARD_STATE_OK) {
+				printf("Card not present Authent Error: \"%s\"\n", strerror(rc));
+				status = FECLR_STS_TIMEOUT;
+				rx_frame_size =  sizeof(cardNotPresentResponse);
+				memcpy(out_buffer, cardNotPresentResponse, rx_frame_size);
+			} else {
+				//Card present response
+				rx_frame_size =  sizeof(cardPresentResponse);
+				memcpy(out_buffer, cardPresentResponse, rx_frame_size);
+			}
 
     	} else if (tlvCommand == 0x00) {
     		printf("DO MIFARE SET KEYS: %02X\n", tlvCommand);
@@ -570,7 +594,6 @@ int socketReadMifare(int fd, union tech_data *tech_data)
     					status = FECLR_STS_TIMEOUT;
     					rx_frame_size =  sizeof(mifareReadFailResponse);
     					memcpy(out_buffer, mifareReadFailResponse, rx_frame_size);
-
     				}
 
     			} else {
@@ -633,8 +656,10 @@ int socketReadMifare(int fd, union tech_data *tech_data)
 				//		client_message[tlvValueOffset+0x02], &data_write_buf[0],
 				//		&write_status);
 
+				uint8_t
+
 				rc = fememc_mfr_cl_write(fd, client_message[tlvValueOffset+0x01],
-						client_message[tlvValueOffset+0x02], &data_write_buf[0],
+						client_message[tlvValueOffset+0x02], &client_message[+tlvValueOffset+0x09],
 								&write_status);
 
 				if (rc == 0) {
@@ -674,7 +699,6 @@ int socketReadMifare(int fd, union tech_data *tech_data)
 
 		if (socketWrite() == -1){
 
-			// Forece wait for xxx seconds for an RFID card to be presented.
 				printf("Forcing new card read...\n");
 				rc = feclr_wait_for_card(fd,
 				WAIT_FOR_CARD_INSERTION_TIMEOUT,
@@ -682,6 +706,12 @@ int socketReadMifare(int fd, union tech_data *tech_data)
 				tech_data,
 				NULL,
 				&status);
+
+				//Drop out if no card present
+				if (!(tech & FECLR_TECH_ISO14443A)) {
+					return 0;
+				}
+
 		}
 
         memset(&client_message, 0, sizeof(client_message));

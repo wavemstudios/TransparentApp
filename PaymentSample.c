@@ -230,6 +230,8 @@ restart_polling:
 
 		if (tech & FECLR_TECH_ISO14443A){
 			setStatus(FECLR_STS_OK);
+
+#ifdef DEBUG
 			printf("ATQ: ");
 				for (idx = 0; idx < sizeof(tech_data.iso14443a_jewel.iso14443a.atqa); idx++) {
 					printf("0x%02X ", tech_data.iso14443a_jewel.iso14443a.atqa[idx]);
@@ -241,6 +243,8 @@ restart_polling:
 					printf("0x%02X ", tech_data.iso14443a_jewel.iso14443a.uid[idx]);
 				}
 			printf("\n");
+#endif
+
 
 		} else if (tech & FECLR_TECH_ISO14443B){
 			setStatus(FECLR_STS_OK);
@@ -290,12 +294,6 @@ restart_polling:
 				//******************************
 
 				int RestVal = socketReadMifare(fd, &tech_data);
-
-				printf("*Here 2\n");
-
-				fflush(stdout);
-				//******************************
-
 				tag = 1;
 			//	visualization_mifare_classic(&tag, &new_tag);
 
